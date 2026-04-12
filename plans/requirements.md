@@ -105,7 +105,7 @@ Because the server communicates over `stdio`, `stdout` corruption must be strict
 FROM ghcr.io/astral-sh/uv:python3.14-trixie
 
 # Label for discoverability
-LABEL io.modelcontextprotocol.server.name="io.github.yourusername/agent-workspace-mcp"
+LABEL io.modelcontextprotocol.server.name="io.github.HrRodan/agent-workspace-mcp"
 
 # Install minimal system utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -143,16 +143,18 @@ ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]
 **`server.json`**
 ```json
 {
-  "$schema": "[https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json](https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json)",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.HrRodan/agent-workspace-mcp",
+  "title": "Agent Workspace MCP",
   "description": "A sandboxed, agentic workspace providing secure filesystem, bash, and uv-powered Python execution.",
   "version": "1.0.0",
   "packages": [
     {
-      "registry_type": "oci",
-      "registry_base_url": "[https://ghcr.io](https://ghcr.io)",
-      "identifier": "HrRodan/agent-workspace-mcp",
-      "version": "1.0.0"
+      "registryType": "oci",
+      "identifier": "ghcr.io/HrRodan/agent-workspace-mcp:1.0.0",
+      "transport": {
+        "type": "stdio"
+      }
     }
   ]
 }

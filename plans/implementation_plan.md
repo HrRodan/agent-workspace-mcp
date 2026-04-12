@@ -1,103 +1,111 @@
 # Implementation Plan: Sandboxed Agent Workspace MCP Server
 
-This implementation plan acts as the definitive roadmap for configuring the Agent Workspace MCP, structured entirely around the provided `requirements.md` Product Requirements Document.
+## 1. Goal Description
+Build a highly secure, containerized Model Context Protocol (MCP) server providing a sandboxed environment for LLMs. The workspace will grant agents capabilities like file system manipulation, python script execution via `uv`, and shell commands through an asynchronous, `fastmcp`-powered architecture while ensuring maximum security to the host environment. The plan strictly aligns with the guidelines in `requirements.md`.
 
-## Phase 1: Environment & Dependency Initialization
+## 2. User Review Required
+No breaking infrastructure changes proposed. However, please review the assumptions concerning:
+> [!WARNING]
+> By default, Docker maps the `-u 1000:1000` executing user. You must be certain your UID matches this if executing strictly on Linux to prevent file permission drift between host mounted volumes (`/workspace`) and the container.
 
-**Step 1: Project Scaffolding**
-- *Action*: Run `uv init` in the repository root to guarantee standard layout creation if not already present.
-- *Action*: Guarantee the deletion of legacy configuration if `pyproject.toml` is malformed.
-- *Verification*: `ls -l` reveals `pyproject.toml`.
+## 3. System Impact
+- `pyproject.toml` (Managed dependencies: `fastmcp`, `pydantic`, `uv`)
+- `src/agent_workspace_mcp/` (Server and all modular tools: filesystem, execution, and editing)
+- `tests/` (Both unit tests and `litellm` e2e integration)
+- `Dockerfile` & `server.json` (Deployment architecture and MCP registry setup)
+- `.github/workflows/ci.yml` (CI/CD definitions)
 
-**Step 2: Core Dependencies Configuration**
-- *Action*: Configure `pyproject.toml`.
-  - Main dependencies: `fastmcp`, `pydantic`.
-  - Dev/Test dependencies: `pyrefly`, `pytest`, `pytest-asyncio`, `litellm`, `python-dotenv`.
-- *Action*: Define the executable entry point.
-  ```toml
-  [project.scripts]
-  agent-workspace-mcp = "agent_workspace_mcp.server:main"
-  ```
-- *Verification*: `uv sync` resolves the tree successfully without conflicts.
+## 4. Phase 1: Environment & Dependency Scaffolding
+**Objective**: Establish the foundational `uv`-managed Python project structure and configure robust dependencies.
 
-## Phase 2: Security & Utility Foundations
+### Step 1: Project Initialization
+- **Action**: Execute `uv init .` in the root repository to generate the project scaffold (if missing). Cleanup any legacy configurations.
+- **Verify**: Check `cat pyproject.toml` confirms standard project definition exists.
 
-**Step 3: Security Boundary Module**
-- *File*: `src/agent_workspace_mcp/utils/security.py`
-- *Implementation*:
-  - Define `WORKSPACE_ROOT = Path("/workspace").resolve()` or fallback to a relative local path.
-  - Implement `safe_path(target_path: str) -> Path`. This function must ensure the resolved target path `is_relative_to(WORKSPACE_ROOT)`.
-  - Throw a clear `ValueError` explicitly informing the LLM the path must be constrained to the workspace if traversal constraints fail.
-- *Verification*: Pytest suite running `safe_path("../../passwords")` properly asserting rejection.
+### Step 2: Core & Development Dependencies
+- **Action**: Modify `pyproject.toml` to:
+  - Add primary runtime dependencies: `fastmcp`, `pydantic`.
+  - Add testing and development dependencies: `pytest`, `pytest-asyncio`, `pyrefly` (for strict typing checks), `litellm`, `python-dotenv`.
+  - Expose the main entry point:
+    ```toml
+    [project.scripts]
+    agent-workspace-mcp = "agent_workspace_mcp.server:main"
+    ```
+- **Verify**: Run `uv sync` to ensure the virtual environment resolves cleanly without conflicts.
 
-## Phase 3: FastMCP Tool Chains
+## 5. Phase 2: Security & Boundary Enforcement
+**Objective**: Guarantee that all execution paths and file operations are strictly localized to the `/workspace` folder.
 
-**Step 4: Execution & Environment Tools**
-- *File*: `src/agent_workspace_mcp/tools/execution.py`
-- *Implementation*:
-  - Implement `async def run_bash(command: str) -> str`.
-    - Wrapper utilizing `asyncio.create_subprocess_shell`.
-    - Integrate `asyncio.wait_for(..., timeout=30)` to enforce PRD timeout limits.
-  - Implement `async def lint_workspace(path: str = ".") -> str`.
-    - Fires `uvx ruff check` and `uvx ruff format --check` to proactively enforce quality via shell.
+### Step 3: Security Boundary Module
+- **File**: `src/agent_workspace_mcp/utils/security.py`
+- **Action**: 
+  - Define `WORKSPACE_ROOT = Path("/workspace").resolve()` (include sensible defaults for native tests).
+  - Implement `safe_path(target_path: str) -> Path`. This must resolve the target string and explicitly enforce `.is_relative_to(WORKSPACE_ROOT)`.
+  - Enforce clear `ValueError` exception outputs to steer LLM behavior when bounds are breached.
+- **Verify**: Run `pytest tests/test_security` to assert that executing `safe_path("../../etc/passwd")` raises a `ValueError` rather than resolving.
 
-**Step 5: File System Utilities**
-- *File*: `src/agent_workspace_mcp/tools/filesystem.py`
-- *Implementation*:
-  - Implement `read_file(filepath: str) -> str`.
-  - Implement `write_file(filepath: str, content: str) -> str` (with `os.makedirs(exist_ok=True)` logic for parents).
-  - Implement `list_directory(directory_path: str) -> str` formatting out `[DIR]` and `[FILE]` cleanly.
-  - Implement `get_file_info(filepath: str) -> str`.
-  - Implement `search_workspace(pattern: str) -> str` wrapping `pathlib.Path.rglob()` constrained strictly to 50 results.
-  - *Constraint*: Every tool here must invoke `security.safe_path(filepath)` first.
+## 6. Phase 3: FastMCP Tool Chain Implementation
+**Objective**: Outline explicit async tools. Every file manipulation heavily leverages the `security` constraints.
 
-**Step 6: Advanced Editing Safety**
-- *File*: `src/agent_workspace_mcp/tools/editing.py`
-- *Implementation*:
-  - Implement `search_and_replace(filepath: str, exact_search_block: str, replace_block: str) -> str`.
-  - Replace functionality executed entirely in-memory first.
-  - `ast.parse(modified_memory_string)` verification if the file matches `*.py`.
-  - Catch `SyntaxError`, returning `line`, `offset`, and descriptive text avoiding a destructive write.
-  - If valid, execute `write_file`.
+### Step 4: File System Utilities
+- **File**: `src/agent_workspace_mcp/tools/filesystem.py`
+- **Action**: Implement typed async tooling mapping via FastMCP schema auto-generation:
+  - `read_file(filepath: str) -> str`: Loads files.
+  - `write_file(filepath: str, content: str) -> str`: Writes securely, orchestrating `os.makedirs(exist_ok=True)`.
+  - `list_directory(directory_path: str = ".") -> str`: Outputs directories tagged cleanly (`[FILE]`, `[DIR]`).
+  - `get_file_info(filepath: str) -> str`: Grabs metadata (Size, Date Modified).
+  - `search_workspace(pattern: str) -> str`: Path traversal limits enforced (max 50 outputs).
+- **Verify**: Run `pytest tests/test_filesystem.py` ensuring tools abort gracefully when limits or bounds fail.
 
-## Phase 4: Core Server Aggregation
+### Step 5: Process Execution Tools
+- **File**: `src/agent_workspace_mcp/tools/execution.py`
+- **Action**: Implement task-based process tools:
+  - `run_bash(command: str) -> str`: Wrap `asyncio.create_subprocess_shell` with a strict `timeout=30` (via `asyncio.wait_for()`).
+  - `lint_workspace(path: str = ".") -> str`: Automate running `uvx ruff check` and formatting limits.
+- **Verify**: Execute `pytest tests/test_execution.py` focusing on timeout handling when command attempts to pause.
 
-**Step 7: The FastMCP Entrypoint**
-- *File*: `src/agent_workspace_mcp/server.py`
-- *Implementation*:
-  - Instantiation: `mcp = FastMCP("Agent Workspace MCP")`.
-  - Import all tools from the `tools/` directory modules.
-  - Register tools via `@mcp.tool()` mapping them to the server context.
-  - Handle persistent logging: Add logging configuration binding `logging.StreamHandler(sys.stderr)` and optionally dropping a log into `/workspace/.mcp/server.log`.
-  - Define `def main(): mcp.run()`.
+### Step 6: Advanced Editing & AST Validation
+- **File**: `src/agent_workspace_mcp/tools/editing.py`
+- **Action**: Integrate a `search_and_replace(filepath: str, exact_search: str, replace: str) -> str` feature:
+  - Perform substitution in-memory exclusively.
+  - Check extensions (`.py` or `.json`), executing `ast.parse()` or `json.loads()` on the modified strings directly prior to overwriting disk.
+  - Intercept syntax issues, outputting formatting problems cleanly to LLM via error logs.
+- **Verify**: Run unit tests ensuring syntactically broken replacement injections never pollute original source files.
 
-## Phase 5: Container deployment
+## 7. Phase 4: Server Aggregation & Observability
+**Objective**: Connect tooling into the global standard FastMCP context.
 
-**Step 8: Dockerization**
-- *File*: `Dockerfile`
-- *Implementation*:
-  - Adopt `FROM ghcr.io/astral-sh/uv:python3.14-trixie`.
-  - Include apt installs `curl`, `git`, `jq`, `nano`, `patch`.
-  - Execute Unix configuration defining UID 1000 (`mcpuser`).
-  - Configure `ENV UV_PROJECT_ENVIRONMENT=/workspace/.venv_container` to ensure host-volume compatibility.
-  - `uv pip install --system fastmcp pydantic`.
-  - Set specific `ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]`.
+### Step 7: FastMCP Entrypoint
+- **File**: `src/agent_workspace_mcp/server.py`
+- **Action**:
+  - Instantiate `mcp = FastMCP("Agent Workspace MCP")`.
+  - Register imported modules automatically via `@mcp.tool()`.
+  - Implement custom Logging stream: Route FastMCP signals `ctx.info()` exclusively while maintaining a backup `sys.stderr` and persistent fallback file `/workspace/.mcp/server.log`. Ban `print()`.
+  - Provide `def main(): mcp.run()`.
+- **Verify**: Boot server using `--help` checks, ensuring expected `stdio` interface initializes cleanly.
 
-**Step 9: MCP Registry Verification Artifacts**
-- *File*: `server.json`
-- *Implementation*: Drop the JSON structure strictly formatted around the new `mcp-publisher` configuration for registry submission.
+## 8. Phase 5: Container Deployment Strategy
+**Objective**: Finalize configuration for Docker publishing.
 
-## Phase 6: QA Validation & E2E
+### Step 8: Image Scaffolding
+- **File**: `Dockerfile`
+- **Action**: Set base to `ghcr.io/astral-sh/uv:python3.14-trixie`. Add minimal shell deps (`curl`, `git`, `jq`, `patch`). Expose `mcpuser` identity. Use `uv pip install --system`. Default entrypoint mapping directly to the `fastmcp` boot script.
+- **Verify**: Validate local compilation: `docker build -t agent-workspace-mcp .`
 
-**Step 10: Live Workflow Testing**
-- *File*: `tests/test_live_workflow.py`
-- *Implementation*:
-  - Hook into `litellm` importing the specific `getenv("DEFAULT_MODEL", "openrouter/google/gemini-3-flash-preview")`.
-  - Run **File Creation Task**: Instruct model to "create a file called Hello.py" and verify file execution.
-  - Run **Search Task**: Instruct model to "search for the string 'ERROR' inside log.txt using `grep`". Verify `run_bash` formats stdout cleanly.
-  - Run **Linting & Fixing Task**: Initialize a file with syntax errors, instruct model to "use `lint_workspace` to find errors, then use `search_and_replace` to fix them". Verify fixed file state.
-  - Guarantee context extraction confirms tools execute cleanly via simulated FastMCP STDIO execution hooks.
+### Step 9: MCP Registry Verification Artifacts
+- **File**: `server.json`
+- **Action**: Layout complete specification utilizing the new `mcp-publisher` configuration schemas pointing towards local container `args`.
+- **Verify**: Ensure the manifest parses valid json format checks.
 
-**Step 11: CI/CD Binding**
-- *File*: `.github/workflows/ci.yml`
-- *Implementation*: Add a basic workflow to ensure `uvx ruff check`, `uv run pyrefly check`, and `uv run pytest` pass cleanly on Pull Requests.
+## 9. Phase 6: QA Validation & E2E
+**Objective**: Guarantee that LLM systems actually work effectively using the entire suite via simulated loops.
+
+### Step 10: Live Workflow Testing
+- **File**: `tests/test_live_workflow.py`
+- **Action**: Employ `litellm` directly simulating autonomous tool-loop calls against local FastMCP endpoints. Define robust "File Creation Tasks" and "Lint & Fix Tasks".
+- **Verify**: Successfully conclude `pytest tests/test_live_workflow.py` testing live logic processing end to end.
+
+### Step 11: CI/CD Binding
+- **File**: `.github/workflows/ci.yml`
+- **Action**: Incorporate actions processing pull-requests automatically verifying `pyrefly`, `ruff`, and overall `pytest` integrations while compiling docker images on merge.
+- **Verify**: The Github Actions configuration is confirmed upon commit.
