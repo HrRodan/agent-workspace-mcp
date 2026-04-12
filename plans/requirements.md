@@ -1,118 +1,74 @@
-# Implementation Blueprint: Sandboxed Agentic Workspace MCP Server
+# Product Requirements Document (PRD): Sandboxed Agentic Workspace MCP Server
 
-This document restructures the business and technical requirements into a phased implementation plan, organized logically for a developer or engineering team.
+## 1. Executive Summary
+A unified Model Context Protocol (MCP) server providing a highly secure, containerized workspace for Large Language Models (LLMs). By combining filesystem manipulation, bash command execution, and robust Python code execution (powered by `uv` and `ruff`), the server acts as an isolated "agentic playground" enabling autonomous coding, testing, and debugging without risking the host machine.
 
----
+## 2. System Architecture & Lifecycle
+* **Base Image:** `ghcr.io/astral-sh/uv:python3.14-trixie`. Includes basic network access to fetch PyPI packages and essential utilities: `curl`, `git`, `jq`, `nano`, and `patch`.
+* **Communication Protocol:** JSON-RPC over Standard Input/Output (`stdio`) using the official Python `mcp` SDK (`FastMCP`).
+* **Concurrency:** All tool functions must be implemented asynchronously (`async def`) using `asyncio` to prevent I/O blocking.
+* **State Management:** The Docker container is ephemeral and destroyed upon client disconnection (`--rm` flag). However, it remains continuously active during the session. All workspace state (including `.venv` directories) persists on the host-mounted volume.
 
-## Epic 1: Repository Setup & Docker Foundation
-*The foundational architecture, dependency management, and container specifications.*
+## 3. Security, Sandboxing & Resource Isolation
+The system enforces strict isolation and prevents host resource exhaustion:
+* **Host-to-Container UID/GID Mapping:** To ensure file permission parity, the container must run with the host user's exact permissions using `--user $(id -u):$(id -g)`.
+* **Non-Root Execution:** The Dockerfile must create and utilize a dedicated non-root user (`mcpuser`).
+* **Kernel Isolation:** Container execution must drop all capabilities (`--cap-drop=ALL`) and prevent privilege escalation (`--security-opt=no-new-privileges:true`).
+* **Hardware Quotas:** Docker runtime flags must cap resources (e.g., `--memory="2g" --cpus="2.0"`) to prevent LLM-generated code from crashing the host.
+* **Workspace Boundary & Path Traversal:** All operations are strictly confined to a host directory mapped to `/workspace`. Tools must resolve absolute paths and explicitly block access outside `/workspace`.
+* **Execution Timeouts:** Bash commands and Python scripts must enforce a strict 30-second timeout to prevent infinite loops from hanging the `stdio` stream.
 
-- [ ] **1.1 Initialize Repository Structure**
-  - Create the `uv`-managed Python package structure.
-  - Set up `src/mcp_agentic_workspace/`, `tests/`, and `utils/` directories.
-- [ ] **1.2 Configure Dependencies (`pyproject.toml`)**
-  - Define dependencies: `mcp[cli]`, `pydantic`.
-  - Configure strict type checking (`mypy` or `pyright`) and linting (`ruff`).
-- [ ] **1.3 Create the Dockerfile**
-  - Set base image to `ghcr.io/astral-sh/uv:python3.14-trixie`.
-  - Install system utilities: `curl`, `git`, `jq`, `nano`, `patch`.
-  - Add OCI Label: `LABEL io.modelcontextprotocol.server.name="io.github.<yourusername>/agentic-workspace"`.
-  - Set up a non-root user (`mcpuser`) and create the `/workspace` directory with appropriate permissions.
-  - Set `ENTRYPOINT` to execute the Python server script.
+## 4. Tool Specifications (LLM API)
+All tools must utilize **Pydantic** for input validation, return highly **actionable error messages** (guiding the LLM on how to fix mistakes), and include explicit MCP capabilities annotations.
 
----
+### 4.1 Execution & Environment Tools
+* **`run_bash`** `(command: str)`
+  * *Description:* Executes shell commands in `/workspace`. Primary vector for running `uv init`, `uv add`, `uv run`, and applying `patch` diffs.
+  * *Annotation:* `destructiveHint: true`
+* **`lint_workspace`** `(path: str = ".")`
+  * *Description:* Proactively executes `uvx ruff check <path>` and `uvx ruff format --check <path>`.
+  * *Annotation:* `readOnlyHint: true`
 
-## Epic 2: Core Server & Observability
-*The FastMCP server initialization, async event loop, and protocol-safe logging.*
+### 4.2 Standard Filesystem Tools
+* **`read_file`** `(filepath: str)`: Returns file contents. (`readOnlyHint: true`)
+* **`write_file`** `(filepath: str, content: str)`: Overwrites/creates a file, auto-creating missing parent directories. (`destructiveHint: true`)
+* **`list_directory`** `(directory_path: str = ".")`: Returns contents tagged as `[FILE]` or `[DIR]`. (`readOnlyHint: true`)
+* **`get_file_info`** `(filepath: str)`: Returns Size (bytes) and Last Modified timestamp. (`readOnlyHint: true`)
+* **`search_workspace`** `(pattern: str)`: Glob search (e.g., `**/*.py`), truncated to 50 results to protect token limits. (`readOnlyHint: true`)
 
-- [ ] **2.1 Initialize FastMCP**
-  - Create `server.py` and instantiate the `FastMCP` application.
-  - Ensure all tool definitions utilize `async def` and `asyncio` to prevent I/O blocking.
-- [ ] **2.2 Implement Persistent Diagnostic Logging**
-  - Configure Python's `logging` module.
-  - Route standard output away from `stdout` (to prevent JSON-RPC corruption).
-  - Add `StreamHandler` to route logs to `sys.stderr`.
-  - Add `FileHandler` to write a persistent rotating log to `/workspace/.mcp/server.log`.
-- [ ] **2.3 Implement Protocol-Native Logging**
-  - Inject `FastMCP` `Context` into tool definitions to stream `ctx.info()` and `ctx.error()` directly to the client UI.
+### 4.3 Advanced Editing Tool
+* **`search_and_replace`** `(filepath: str, exact_search_block: str, replace_block: str)`
+  * *Description:* Swaps a specific string block (highly token-efficient).
+  * *Validation Gate:* Edits are performed in-memory first. If a `.py` file, it validates via `ast.parse()`. If a `.json` file, via `json.loads()`.
+  * *Error Handling:* Rejects invalid syntax instantly, returning the specific Error Type, Line Number, and Message to the LLM to facilitate self-correction without touching the disk.
+  * *Annotation:* `destructiveHint: true`
 
----
+## 5. Code Quality & Project Structure
+* **Strict Typing:** 100% type annotation coverage using standard Python type hints. Must pass `pyright` or `mypy` under strict mode.
+* **Docstrings:** All modules and functions must use Google-style or NumPy-style docstrings. Tool docstrings must be exceptionally descriptive to guide LLM behavior.
+* **Extensible Structure:** Standard modern Python package format managed by `uv`:
+  * `src/agent_workspace_mcp/` (contains `server.py`, `tools/`, `utils/`)
+  * `tests/`
+  * `pyproject.toml`, `server.json`, `Dockerfile`, `README.md`
 
-## Epic 3: Security Boundaries & Path Handling
-*The internal guardrails to prevent breakout and enforce the workspace sandbox.*
-
-- [ ] **3.1 Path Traversal Prevention (`utils/security.py`)**
-  - Create a utility function (`resolve_safe_path(filepath)`) that resolves absolute paths and raises an exception if the target falls outside `/workspace`.
-  - Apply this utility to every filesystem tool.
-- [ ] **3.2 Execution Timeouts**
-  - Implement a hard 30-second `asyncio.wait_for` timeout wrapper for all bash and external Python executions.
-
----
-
-## Epic 4: Tool Implementation (The LLM API)
-*Building the actual MCP tools with Pydantic validation and MCP annotations.*
-
-- [ ] **4.1 Filesystem Tools (Annotated: `readOnlyHint: true`)**
-  - `read_file(filepath: str)`
-  - `list_directory(directory_path: str)` - Tag outputs as `[FILE]` or `[DIR]`.
-  - `get_file_info(filepath: str)` - Return size and modified time.
-  - `search_workspace(pattern: str)` - Glob search, truncate at 50 results.
-- [ ] **4.2 Destructive Filesystem Tools (Annotated: `destructiveHint: true`)**
-  - `write_file(filepath: str, content: str)` - Auto-create missing parent directories.
-  - `search_and_replace(filepath: str, exact_search_block: str, replace_block: str)`
-- [ ] **4.3 AST & JSON Validation Gate (For `search_and_replace`)**
-  - Implement in-memory string replacement.
-  - If `.py`, run `ast.parse()`. Return explicit `e.lineno` and `e.msg` if it fails.
-  - If `.json`, run `json.loads()`.
-  - Only write to disk if validation passes.
-- [ ] **4.4 Execution Tools (Annotated: `destructiveHint: true`)**
-  - `run_bash(command: str)` - Return stdout, stderr, and exit code.
-- [ ] **4.5 Linting Tool (Annotated: `readOnlyHint: true`)**
-  - `lint_workspace(path: str = ".")` - Execute `uvx ruff check` and `uvx ruff format --check`.
-
----
-
-## Epic 5: Deployment & Client Configuration
-*How the end-user safely mounts the container and configures their client.*
-
-- [ ] **5.1 Define the Client JSON Configuration**
-  - Document the exact `docker run` command required for `mcpServers` in Claude Desktop/Cursor.
-- [ ] **5.2 Enforce Runtime Security Flags (In Documentation)**
-  - Require `--cap-drop=ALL` and `--security-opt=no-new-privileges:true`.
-  - Require Resource Quotas: e.g., `--memory="2g" --cpus="2.0"`.
-- [ ] **5.3 Implement UID/GID Mapping**
-  - Require the `--user $(id -u):$(id -g)` flag in the client config to ensure files written to the host mount are owned by the host user, not root.
-  - Document `.env` file pass-throughs for API keys.
-
----
-
-## Epic 6: Testing Strategy
-*Ensuring the server works programmatically and agentically.*
-
-- [ ] **6.1 Unit Testing (`pytest`)**
-  - Mock filesystem operations.
-  - Test the path traversal blocker (ensure `../../etc/passwd` fails).
-  - Test the AST validation gate (ensure missing colons are caught).
-- [ ] **6.2 Agentic E2E Testing**
-  - Write a test using the OpenAI/Anthropic SDK wrapping the FastMCP server.
-  - **Test Scenario 1 (Inline Scripts):** Prompt agent to write a single script with PEP 723 dependencies (`# /// script`) and run it via `uv run`. Assert output.
-  - **Test Scenario 2 (Complex Projects):** Prompt agent to run `uv init`, `uv add`, create a multi-file architecture, and execute. Assert successful initialization.
-
----
-
-## Epic 7: Documentation & Registry Publishing
-*Preparing for open-source release and official MCP index inclusion.*
-
-- [ ] **7.1 Comprehensive README**
-  - Setup instructions and copy-paste JSON configurations.
-  - **Agent Prompts:** Provide specific system prompt instructions teaching the agent to use PEP 723 for single scripts vs. `uv init` for applications.
-  - Explain the logging strategy and where to find the `.mcp/server.log`.
-- [ ] **7.2 Create `server.json` for MCP Registry**
-  - Create the metadata file adhering to `https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json`.
-- [ ] **7.3 GitHub Actions Workflow (CI/CD)**
-  - Create workflow to run `ruff` and `mypy` on PRs.
-  - Create publishing workflow triggering on `main` branch or releases:
-    1. Build and push Docker image to GHCR.
-    2. Install `mcp-publisher` CLI.
-    3. Run `mcp-publisher login github` & `mcp-publisher publish` to update the registry.
-  - Add a weekly cron job to automatically rebuild and push the image to absorb upstream `uv:trixie` security patches.
+## 6. Documentation & Client Configuration
+The `README.md` must be comprehensive and include:
+* **Host Setup:** Instructions and JSON copy-paste snippets for integrating with MCP clients (Claude Desktop, Cursor). Includes env var passing (`--env-file=.env`).
+* **Required Client JSON Schema:**
+  ```json
+  {
+    "mcpServers": {
+      "agentic-workspace": {
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "--memory=2g", "--cpus=2.0",
+          "--cap-drop=ALL", "--security-opt=no-new-privileges:true",
+          "--env-file=.env",
+          "--user", "$(id -u):$(id -g)",
+          "-v", "<HOST_TARGET_DIRECTORY>:/workspace",
+          "<BUILT_IMAGE_NAME>"
+        ]
+      }
+    }
+  }
