@@ -159,6 +159,7 @@ venv.bak/
 
 # temp folder contents
 tmp/*
+scratch/
 
 # Spyder project settings
 .spyderproject

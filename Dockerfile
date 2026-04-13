@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     nano \
     patch \
-    tini \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group with an explicit UID for Linux compatibility
@@ -34,5 +33,5 @@ RUN uv pip install --system /app
 # Switch to the non-root user before executing
 USER mcpuser
 
-# Execute the FastMCP server directly, wrapped by `tini` to properly reap zombie subprocesses
-ENTRYPOINT ["tini", "--", "python", "-m", "agent_workspace_mcp.server"]
+# Execute the FastMCP server directly
+ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]

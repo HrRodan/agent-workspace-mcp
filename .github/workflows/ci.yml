@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Run unit tests
-        run: uv run pytest tests/ --ignore=tests/test_live_workflow.py -v
+        run: uv run pytest tests/ --ignore=tests/integration/ -v
 
   docker-build:
     runs-on: ubuntu-latest
