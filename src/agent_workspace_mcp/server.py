@@ -33,6 +33,7 @@ mcp.add_tool(execution.lint_workspace)
 mcp.add_tool(editing.apply_patch)
 mcp.add_tool(editing.search_and_replace)
 
+
 def setup_logging() -> None:
     """Configure dual logging: stderr + rotating file in /workspace/.mcp/."""
     log_dir = security.WORKSPACE_ROOT / ".mcp"
@@ -41,7 +42,7 @@ def setup_logging() -> None:
     except Exception:
         # If /workspace is read-only and .mcp doesn't exist, log to stderr only
         pass
-        
+
     log_file = log_dir / "server.log"
 
     formatter = logging.Formatter(
@@ -61,12 +62,17 @@ def setup_logging() -> None:
     # Rotating file handler (5MB, 2 backups) if writable
     try:
         file_handler = RotatingFileHandler(
-            log_file, maxBytes=5 * 1024 * 1024, backupCount=2,
+            log_file,
+            maxBytes=5 * 1024 * 1024,
+            backupCount=2,
         )
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
     except Exception:
-        root_logger.warning("Could not create log file at %s, logging to stderr only", log_file)
+        root_logger.warning(
+            "Could not create log file at %s, logging to stderr only", log_file
+        )
+
 
 def main() -> None:
     """Entry point for the Agent Workspace MCP server."""
@@ -74,9 +80,10 @@ def main() -> None:
     logger = logging.getLogger(__name__)
     logger.info("Agent Workspace MCP server starting...")
     logger.info("Workspace root: %s", security.WORKSPACE_ROOT)
-    
+
     # Run the server using stdio transport
     mcp.run()
+
 
 if __name__ == "__main__":
     main()

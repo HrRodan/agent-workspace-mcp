@@ -7,6 +7,7 @@ from fastmcp import Context
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools.execution import run_bash
 
+
 async def apply_patch(patch_content: str, ctx: Context) -> str:
     """Apply a Unified Diff (.patch format) to the workspace using the native 'patch' utility.
 
@@ -20,9 +21,11 @@ async def apply_patch(patch_content: str, ctx: Context) -> str:
     temp_patch = None
     try:
         await ctx.info("Applying patch...")
-        
+
         # Create a temporary patch file in /tmp (which should be tmpfs in container)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False, dir="/tmp") as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".patch", delete=False, dir="/tmp"
+        ) as tmp:
             tmp.write(patch_content)
             temp_patch = tmp.name
 
@@ -30,7 +33,7 @@ async def apply_patch(patch_content: str, ctx: Context) -> str:
         # We use run_bash to leverage its execution logic and timeout
         command = f"patch -p1 < {temp_patch}"
         result = await run_bash(command, timeout=security.COMMAND_TIMEOUT, ctx=ctx)
-        
+
         return result
 
     except Exception as e:
@@ -43,11 +46,9 @@ async def apply_patch(patch_content: str, ctx: Context) -> str:
             except Exception:
                 pass
 
+
 async def search_and_replace(
-    filepath: str, 
-    exact_search_block: str, 
-    replace_block: str, 
-    ctx: Context
+    filepath: str, exact_search_block: str, replace_block: str, ctx: Context
 ) -> str:
     """Swap a specific string block in a file with a replacement block.
 

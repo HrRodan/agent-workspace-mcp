@@ -3,6 +3,7 @@ import datetime
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
 
+
 async def read_file(filepath: str, ctx: Context) -> str:
     """Read the contents of a file from the workspace.
 
@@ -33,7 +34,6 @@ async def read_file(filepath: str, ctx: Context) -> str:
                 f"({security.MAX_READ_SIZE_BYTES}). Use shell commands like 'head' or 'grep' to process it."
             )
 
-
         # Use errors="replace" to avoid crashing on invalid UTF-8 sequences in text files
         content = path.read_text(encoding="utf-8", errors="replace")
         return content
@@ -41,6 +41,7 @@ async def read_file(filepath: str, ctx: Context) -> str:
     except Exception as e:
         await ctx.error(f"Failed to read {filepath}: {str(e)}")
         return f"ERROR: {str(e)}"
+
 
 async def write_file(filepath: str, content: str, ctx: Context) -> str:
     """Write content to a file in the workspace.
@@ -71,6 +72,7 @@ async def write_file(filepath: str, content: str, ctx: Context) -> str:
         await ctx.error(f"Failed to write to {filepath}: {str(e)}")
         return f"ERROR: {str(e)}"
 
+
 async def list_directory(directory_path: str = ".", ctx: Context = None) -> str:
     """List the contents of a directory in the workspace.
 
@@ -93,7 +95,9 @@ async def list_directory(directory_path: str = ".", ctx: Context = None) -> str:
             return f"ERROR: '{directory_path}' is not a directory."
 
         entries = []
-        for item in sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+        for item in sorted(
+            path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
+        ):
             rel_path = item.relative_to(security.WORKSPACE_ROOT)
             if item.is_dir():
                 entries.append(f"[DIR]  {rel_path}/")
@@ -110,6 +114,7 @@ async def list_directory(directory_path: str = ".", ctx: Context = None) -> str:
         if ctx:
             await ctx.error(f"Failed to list {directory_path}: {str(e)}")
         return f"ERROR: {str(e)}"
+
 
 async def get_file_info(filepath: str, ctx: Context) -> str:
     """Get metadata for a specific file or directory.
@@ -129,7 +134,9 @@ async def get_file_info(filepath: str, ctx: Context) -> str:
             return f"ERROR: '{filepath}' not found."
 
         stats = path.stat()
-        mod_time = datetime.datetime.fromtimestamp(stats.st_mtime, tz=datetime.timezone.utc).isoformat()
+        mod_time = datetime.datetime.fromtimestamp(
+            stats.st_mtime, tz=datetime.timezone.utc
+        ).isoformat()
         perms = oct(stats.st_mode & 0o777)
         item_type = "directory" if path.is_dir() else "file"
 
@@ -146,6 +153,7 @@ async def get_file_info(filepath: str, ctx: Context) -> str:
         await ctx.error(f"Failed to get info for {filepath}: {str(e)}")
         return f"ERROR: {str(e)}"
 
+
 async def search_workspace(pattern: str, ctx: Context) -> str:
     """Search for files in the workspace using a glob pattern.
 
@@ -158,20 +166,23 @@ async def search_workspace(pattern: str, ctx: Context) -> str:
     """
     try:
         await ctx.info(f"Searching for pattern: {pattern}")
-        
+
         matches = []
         count = 0
-        
+
         # We search relative to security.WORKSPACE_ROOT
         for path in security.WORKSPACE_ROOT.glob(pattern):
             # Check if any parent directory is in security.SEARCH_EXCLUDE_DIRS
-            if any(part in security.SEARCH_EXCLUDE_DIRS for part in path.relative_to(security.WORKSPACE_ROOT).parts):
+            if any(
+                part in security.SEARCH_EXCLUDE_DIRS
+                for part in path.relative_to(security.WORKSPACE_ROOT).parts
+            ):
                 continue
-            
+
             if path.is_file():
                 matches.append(str(path.relative_to(security.WORKSPACE_ROOT)))
                 count += 1
-            
+
             if count >= security.MAX_SEARCH_RESULTS:
                 break
 
@@ -180,10 +191,12 @@ async def search_workspace(pattern: str, ctx: Context) -> str:
 
         result = [f"Found {len(matches)} matches:"]
         result.extend(matches)
-        
+
         if count >= security.MAX_SEARCH_RESULTS:
-            result.append(f"... truncated at {security.MAX_SEARCH_RESULTS} results. Narrow your pattern.")
-            
+            result.append(
+                f"... truncated at {security.MAX_SEARCH_RESULTS} results. Narrow your pattern."
+            )
+
         return "\n".join(result)
 
     except Exception as e:
