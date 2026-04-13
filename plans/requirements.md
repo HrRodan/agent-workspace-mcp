@@ -16,6 +16,7 @@ The system enforces strict isolation and prevents host resource exhaustion:
 * **Kernel Isolation:** Container execution must drop all capabilities (`--cap-drop=ALL`) and prevent privilege escalation (`--security-opt=no-new-privileges:true`).
 * **Hardware Quotas:** Docker runtime flags must cap resources (e.g., `--memory="2g" --cpus="2.0"`) to prevent LLM-generated code from crashing the host.
 * **Workspace Boundary & Path Traversal:** All operations are strictly confined to a host directory mapped to `/workspace`. Tools must resolve absolute paths and explicitly block access outside `/workspace`.
+* **Network Isolation:** Outbound network access is unrestricted to allow agents to fetch PyPI packages and external resources. No incoming ports are exposed.
 * **Execution Timeouts:** Bash commands and Python scripts must enforce a strict 30-second timeout to prevent infinite loops from hanging the `stdio` stream.
 
 ## 4. Tool Specifications (LLM API)
@@ -35,7 +36,10 @@ All tools must utilize **Pydantic** for input validation, return highly **action
 * **`get_file_info`** `(filepath: str)`: Returns Size (bytes) and Last Modified timestamp.
 * **`search_workspace`** `(pattern: str)`: Glob search (e.g., `**/*.py`), truncated to 50 results to protect token limits.
 
-### 4.3 Advanced Editing Tool
+### 4.3 Advanced Editing Tools
+* **`apply_patch`** `(patch_content: str)`
+  * *Description:* Applies a Unified Diff (`.patch` format) to the workspace using the native `patch` utility.
+  * *Implementation:* Writes the diff to a temporary file and executes `patch -p1 < temp.patch` via `run_bash`.
 * **`search_and_replace`** `(filepath: str, exact_search_block: str, replace_block: str)`
   * *Description:* Swaps a specific string block (highly token-efficient). Agent should be prompted to use `read_file` first to ensure perfect whitespace matching.
   * *Validation Gate:* Edits are performed in-memory first. If a `.py` file, it validates via `ast.parse()`. If a `.json` file, via `json.loads()`.
@@ -54,7 +58,7 @@ The `README.md` must be comprehensive and include:
 * **System Prompt Guidelines (Agent Workflows):** Explicit instructions for users to pass to their agents:
   * *Workflow A (Single Scripts):* Use PEP 723 inline metadata (`# /// script`) for single files and execute via `uv run`.
   * *Workflow B (Complex Projects):* Use `run_bash` for `uv init`, build multi-file structures, and manage dependencies via `uv add`.
-* **Host Setup:** Instructions and JSON snippets for integrating with MCP clients (Claude Desktop, Cursor). Includes env var passing (`--env-file=.env`).
+* **Host Setup:** Instructions and JSON snippets for integrating with MCP clients (Claude Desktop, Cursor). Crucially avoids importing the host's `.env` file to prevent the LLM agent from obtaining unrestricted access to host secrets.
 
 ```json
 {
@@ -65,7 +69,7 @@ The `README.md` must be comprehensive and include:
         "run", "-i", "--rm",
         "--memory=2g", "--cpus=2.0",
         "--cap-drop=ALL", "--security-opt=no-new-privileges:true",
-        "--env-file=.env",
+        "--env", "UV_PROJECT_ENVIRONMENT=/workspace/.venv_container",
         "--user", "1000:1000",
         "-v", "<HOST_TARGET_DIRECTORY>:/workspace",
         "<BUILT_IMAGE_NAME>"
@@ -78,7 +82,7 @@ The `README.md` must be comprehensive and include:
 
 ## 7. Testing Strategy
 * **Unit Testing:** Validate path boundary logic (`safe_path`), AST validation, and input parsing using mocked filesystem operations.
-* **E2E Agentic Testing:** Pytest suite utilizing OpenAI/Anthropic SDKs to test real LLM reasoning against the running container.
+* **E2E Agentic Testing:** Pytest suite utilizing `litellm` and OpenRouter (via `DEFAULT_MODEL` falling back to `openrouter/google/gemini-3-flash-preview`) to test real LLM agent logic directly interacting with the running Docker container over `stdio`.
   * *Scenario 1:* Validate LLM can create a standalone Python file with PEP 723 dependencies and execute it.
   * *Scenario 2:* Validate LLM can initialize a project (`uv init`), add dependencies (`uv add`), and execute the entry point.
   * *Scenario 3:* Validate LLM can utilize `run_bash` to execute Linux tools (e.g., `grep` for string searching, `jq` for json parsing).
@@ -114,6 +118,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     nano \
     patch \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group with an explicit UID for Linux compatibility
@@ -136,8 +141,8 @@ COPY pyproject.toml /app/
 # Switch to the non-root user before executing
 USER mcpuser
 
-# Execute the FastMCP server directly (using system Python since uv pip installed globally)
-ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]
+# Execute the FastMCP server directly, wrapped by `tini` to properly reap zombie subprocesses
+ENTRYPOINT ["tini", "--", "python", "-m", "agent_workspace_mcp.server"]
 ```
 
 **`server.json`**
