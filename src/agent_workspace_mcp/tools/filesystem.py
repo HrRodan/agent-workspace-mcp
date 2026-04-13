@@ -1,7 +1,5 @@
 import os
 import datetime
-from pathlib import Path
-from typing import Optional
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
 
