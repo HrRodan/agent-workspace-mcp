@@ -1,7 +1,22 @@
 [project]
 name = "agent-workspace-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "A sandboxed, agentic workspace MCP server for LLMs."
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastmcp>=3.2.3",
+    "pydantic>=2.0",
+]
+
+[project.scripts]
+agent-workspace-mcp = "agent_workspace_mcp.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "litellm>=1.50",
+    "python-dotenv>=1.0",
+    "ruff>=0.9",
+]

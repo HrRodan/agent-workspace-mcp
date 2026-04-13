@@ -35,7 +35,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
 
 ### Step 1: Project Initialization
 - **Action**: The project scaffold already exists (`pyproject.toml` with `uv init` output). Verify it targets Python `>=3.14` and has the correct `name`.
-- **Verify**: `cat pyproject.toml` confirms `name = "agent-workspace-mcp"` and `requires-python = ">=3.14"`.
+- **Verify**: `[x]` `cat pyproject.toml` confirms `name = "agent-workspace-mcp"` and `requires-python = ">=3.14"`.
 
 ### Step 2: Core & Development Dependencies
 - **Action**: Modify `pyproject.toml`:
@@ -64,7 +64,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   ]
   ```
   Note: `pyrefly` is installed as a CLI tool via `uv tool install pyrefly`, not as a project dependency.
-- **Verify**: Run `uv sync` — ensure the virtual environment resolves cleanly with zero conflicts.
+- **Verify**: `[x]` Run `uv sync` — ensure the virtual environment resolves cleanly with zero conflicts.
 
 ### Step 3: Create Package Structure
 - **Action**: Create the directory scaffolding:
@@ -86,7 +86,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
 
   __version__ = "0.1.0"
   ```
-- **Verify**: `uv run python -c "import agent_workspace_mcp; print(agent_workspace_mcp.__version__)"` prints `0.1.0`.
+- **Verify**: `[x]` `uv run python -c "import agent_workspace_mcp; print(agent_workspace_mcp.__version__)"` prints `0.1.0`.
 
 ---
 
@@ -164,14 +164,14 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
           return False
   ```
 
-- **Verify**: Run `uv run pytest tests/test_security.py` — the following test scenarios must pass:
-  - `safe_path("main.py")` → resolves to `WORKSPACE_ROOT / "main.py"`.
-  - `safe_path("sub/dir/file.py")` → resolves relative to workspace.
-  - `safe_path("../../etc/passwd")` → raises `ValueError`.
-  - `safe_path("/etc/passwd")` → raises `ValueError`.
-  - `safe_path("/workspace/legit.py")` → succeeds.
-  - Symlink pointing outside workspace → raises `ValueError`.
-  - `is_binary()` rejects compiled `.pyc` files, accepts `.py` files.
+- **Verify**: `[x]` Run `uv run pytest tests/test_security.py` — the following test scenarios must pass:
+  - `[x]` `safe_path("main.py")` → resolves to `WORKSPACE_ROOT / "main.py"`.
+  - `[x]` `safe_path("sub/dir/file.py")` → resolves relative to workspace.
+  - `[x]` `safe_path("../../etc/passwd")` → raises `ValueError`.
+  - `[x]` `safe_path("/etc/passwd")` → raises `ValueError`.
+  - `[x]` `safe_path("/workspace/legit.py")` → succeeds.
+  - `[x]` Symlink pointing outside workspace → raises `ValueError`.
+  - `[x]` `is_binary()` rejects compiled `.pyc` files, accepts `.py` files.
 
 ---
 
@@ -259,16 +259,16 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   - Returns relative paths (from workspace root), one per line, with a count header.
   - If results were truncated, appends: `"... truncated at {MAX_SEARCH_RESULTS} results. Narrow your pattern."`.
 
-- **Verify**: Run `uv run pytest tests/test_filesystem.py -v`. Test scenarios include:
-  - Read a normal text file → returns content.
-  - Read a binary file → returns error message.
-  - Read a file larger than MAX_READ_SIZE_BYTES → returns error message.
-  - Write creates parent directories.
-  - Write to a path outside workspace → raises error.
-  - List a directory with mixed files/dirs → sorted output.
-  - List a non-existent directory → returns error.
-  - Search finds `.py` files but excludes `__pycache__`.
-  - Search truncates at limit.
+- **Verify**: `[x]` Run `uv run pytest tests/test_filesystem.py -v`. Test scenarios include:
+  - `[x]` Read a normal text file → returns content.
+  - `[x]` Read a binary file → returns error message.
+  - `[x]` Read a file larger than MAX_READ_SIZE_BYTES → returns error message.
+  - `[x]` Write creates parent directories.
+  - `[x]` Write to a path outside workspace → raises error.
+  - `[x]` List a directory with mixed files/dirs → sorted output.
+  - `[x]` List a non-existent directory → returns error.
+  - `[x]` Search finds `.py` files but excludes `__pycache__`.
+  - `[x]` Search truncates at limit.
 
 ### Step 7: Process Execution Tools
 - **File**: `src/agent_workspace_mcp/tools/execution.py`
@@ -301,13 +301,13 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   - Concatenates results with a clear separator.
   - If both pass, returns `"✓ No lint or formatting issues found."`.
 
-- **Verify**: Run `uv run pytest tests/test_execution.py -v`. Test scenarios:
-  - `run_bash("echo hello")` → returns `"hello\n"`.
-  - `run_bash("sleep 60", timeout=1)` → returns timeout error, process is killed.
-  - `run_bash("exit 1")` → returns non-zero exit code in output.
-  - `run_bash` with long output → truncated.
-  - `lint_workspace` on clean code → success message.
-  - `lint_workspace` on dirty code → returns diagnostics.
+- **Verify**: `[x]` Run `uv run pytest tests/test_execution.py -v`. Test scenarios:
+  - `[x]` `run_bash("echo hello")` → returns `"hello\n"`.
+  - `[x]` `run_bash("sleep 60", timeout=1)` → returns timeout error, process is killed.
+  - `[x]` `run_bash("exit 1")` → returns non-zero exit code in output.
+  - `[x]` `run_bash` with long output → truncated.
+  - `[x]` `lint_workspace` on clean code → success message.
+  - `[x]` `lint_workspace` on dirty code → returns diagnostics.
 
 ### Step 8: Advanced Editing Tools & AST Validation
 - **File**: `src/agent_workspace_mcp/tools/editing.py`
@@ -355,15 +355,15 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   - **Step 5 — Write atomically**: Write to a sibling temp file, then `os.replace()`.
   - Returns `"Successfully replaced content in '{filepath}'. {len(replace_block)} chars written."`.
 
-- **Verify**: Run `uv run pytest tests/test_editing.py -v`. Test scenarios:
-  - `search_and_replace` with valid Python edit → file updated, AST validates.
-  - `search_and_replace` injecting invalid Python syntax → original file preserved, error returned.
-  - `search_and_replace` with non-existent search block → error returned.
-  - `search_and_replace` with ambiguous (multiple) matches → error returned.
-  - `search_and_replace` on `.json` file with broken JSON replacement → error returned.
-  - `search_and_replace` on `.txt` file → skips validation, writes directly.
-  - `apply_patch` with valid unified diff → file patched.
-  - `apply_patch` with invalid/conflicting diff → error returned.
+- **Verify**: `[x]` Run `uv run pytest tests/test_editing.py -v`. Test scenarios:
+  - `[x]` `search_and_replace` with valid Python edit → file updated, AST validates.
+  - `[x]` `search_and_replace` injecting invalid Python syntax → original file preserved, error returned.
+  - `[x]` `search_and_replace` with non-existent search block → error returned.
+  - `[x]` `search_and_replace` with ambiguous (multiple) matches → error returned.
+  - `[x]` `search_and_replace` on `.json` file with broken JSON replacement → error returned.
+  - `[x]` `search_and_replace` on `.txt` file → skips validation, writes directly.
+  - `[x]` `apply_patch` with valid unified diff → file patched.
+  - `[x]` `apply_patch` with invalid/conflicting diff → error returned.
 
 ---
 
@@ -455,8 +455,8 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   ```
 
 - **Verify**:
-  - `uv run python -m agent_workspace_mcp.server --help` (if FastMCP exposes CLI help) or `uv run python -c "from agent_workspace_mcp.server import mcp; print(mcp.name)"` to verify import chain.
-  - Manually run `echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"capabilities":{},"protocolVersion":"2024-11-05","clientInfo":{"name":"test","version":"0.1.0"}}}' | uv run python -m agent_workspace_mcp.server` and verify a valid JSON-RPC response on stdout.
+  - `[x]` `uv run python -m agent_workspace_mcp.server --help` (if FastMCP exposes CLI help) or `uv run python -c "from agent_workspace_mcp.server import mcp; print(mcp.name)"` to verify import chain.
+  - `[x]` Manually run `echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"capabilities":{},"protocolVersion":"2024-11-05","clientInfo":{"name":"test","version":"0.1.0"}}}' | uv run python -m agent_workspace_mcp.server` and verify a valid JSON-RPC response on stdout.
 
 ---
 
@@ -466,7 +466,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
 ### Step 10: `.dockerignore`
 - **File**: `.dockerignore`
 - **Action**: Create with the exclusions listed in requirements Section 10.1 to minimize image size and prevent leaking secrets.
-- **Verify**: File exists and `.env`, `.git`, `tests/`, `plans/` are listed.
+- **Verify**: `[x]` File exists and `.env`, `.git`, `tests/`, `plans/` are listed.
 
 ### Step 11: Dockerfile
 - **File**: `Dockerfile`
@@ -476,7 +476,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   - **Install strategy**: `uv pip install --system /app` — installs the project and its dependencies system-wide. The `pyproject.toml` is copied first (before `src/`) to leverage Docker layer caching for dependency resolution.
   - **User**: `mcpuser` (UID 1000) is created and set before the `ENTRYPOINT`.
   - **ENTRYPOINT**: `tini -- python -m agent_workspace_mcp.server` — `tini` handles signal forwarding and zombie reaping as PID 1.
-- **Verify**: Local image build succeeds:
+- **Verify**: `[x]` Local image build succeeds:
   ```bash
   docker build -t agent-workspace-mcp .
   ```
@@ -489,7 +489,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
 ### Step 12: MCP Registry Manifest
 - **File**: `server.json`
 - **Action**: Create as specified in requirements Section 10.1. Follows the `mcp-publisher` schema.
-- **Verify**: `python -m json.tool server.json` parses without error.
+- **Verify**: `[x]` `python -m json.tool server.json` parses without error.
 
 ---
 
@@ -504,7 +504,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   - Use `pytest.mark.asyncio` for all async tool tests.
   - Mock `asyncio.create_subprocess_exec` in execution tests to avoid actual shell calls.
   - For filesystem tests, create real files in `tmp_path`.
-- **Verify**: `uv run pytest tests/ --ignore=tests/test_live_workflow.py -v` — all pass.
+- **Verify**: `[x]` `uv run pytest tests/ --ignore=tests/test_live_workflow.py -v` — all pass.
 
 ### Step 14: E2E Agentic Testing
 - **File**: `tests/test_live_workflow.py`
@@ -526,7 +526,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
     3. **Linux Tools**: Agent uses `grep`, `jq`, `curl` via `run_bash`.
     4. **Lint & Fix**: Agent lints, detects errors, fixes via `search_and_replace`.
     5. **Security Boundary**: Agent attempts to read `/etc/passwd` — must fail gracefully.
-- **Verify**: `uv run pytest tests/test_live_workflow.py -v` with `OPENROUTER_API_KEY` set.
+- **Verify**: `[x]` `uv run pytest tests/test_live_workflow.py -v` with `OPENROUTER_API_KEY` set.
 
 ### Step 15: CI/CD Pipeline
 - **File**: `.github/workflows/ci.yml`
@@ -605,7 +605,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
             OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
             DEFAULT_MODEL: openrouter/google/gemini-3-flash-preview
   ```
-- **Verify**: Commit and push — Actions tab shows green status.
+- **Verify**: `[x]` Commit and push — Actions tab shows green status.
 
 ---
 
@@ -621,7 +621,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   6. **Security Model** — what's sandboxed and why.
   7. **Development** — contributing guidelines, running tests, CI/CD.
   8. **Troubleshooting** — common issues (UID mismatch, volume permissions, timeout tuning).
-- **Verify**: README renders correctly on GitHub (push and check).
+- **Verify**: `[x]` README renders correctly on GitHub (push and check).
 
 ### Step 17: `.env.example`
 - **File**: `.env.example`
@@ -637,7 +637,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   # MAX_READ_SIZE_BYTES=1048576
   # LOG_LEVEL=INFO
   ```
-- **Verify**: File exists and `.env` is in `.gitignore`.
+- **Verify**: `[x]` File exists and `.env` is in `.gitignore`.
 
 ---
 
