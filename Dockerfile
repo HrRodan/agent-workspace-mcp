@@ -1,4 +1,11 @@
-FROM ghcr.io/astral-sh/uv:python3.14-trixie
+# Use a separate stage for uv binary
+FROM ghcr.io/astral-sh/uv:latest AS uv_bin
+
+# Final stage
+FROM python:3.14-slim-trixie
+
+# Copy uv binary from the distroless image
+COPY --from=uv_bin /uv /uvx /bin/
 
 # Label for discoverability
 LABEL io.modelcontextprotocol.server.name="io.github.HrRodan/agent-workspace-mcp"
@@ -21,7 +28,9 @@ RUN groupadd -g 1000 mcpuser && useradd -u 1000 -g 1000 -m mcpuser
 WORKDIR /app
 
 # Enable byte compilation for faster startup
-ENV UV_COMPILE_BYTECODE=1
+# ENV UV_LINK_MODE=copy ensures compatibility across Docker layers
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
 # Copy the dependency files first to leverage Docker layer caching
 COPY pyproject.toml uv.lock ./
@@ -32,7 +41,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
-# Copy the server application code
+# Copy the rest of the server application code
 COPY README.md ./
 COPY src/ ./src/
 
