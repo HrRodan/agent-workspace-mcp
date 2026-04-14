@@ -23,13 +23,16 @@ A unified Model Context Protocol (MCP) server providing a **highly secure, conta
 ## 🏗️ Architecture
 
 ```mermaid
-graph TD
-    Client[MCP Client (Claude/Cursor)] -- "stdio (JSON-RPC)" --> Server[FastMCP Server]
-    subgraph "Docker Sandbox (Isolated)"
-        Server -- "Subprocess" --> Bash[Bash / Shell]
-        Server -- "API" --> FS[Filesystem Utilities]
-        Server -- "Subprocess" --> UV[UV / Ruff / Python]
+flowchart TD
+    Client["MCP Client (Claude / Cursor)"] -- "stdio (JSON-RPC)" --> Server["FastMCP Server"]
+
+    subgraph Sandbox ["Docker Sandbox (Isolated)"]
+        direction TB
+        Server -- "Subprocess" --> Bash["Bash / Shell"]
+        Server -- "API" --> FS["Filesystem Utilities"]
+        Server -- "Subprocess" --> UV["uv / Ruff / Python"]
     end
+
     FS -- "Mount" --> HostVolume["/workspace (Host Directory)"]
 ```
 
@@ -37,12 +40,62 @@ graph TD
 
 ## 📦 Quick Start
 
-### 1. Build the Docker Image
+### 1. Pull the Docker Image
 ```bash
-docker build -t agent-workspace-mcp .
+docker pull ghcr.io/hrrodan/agent-workspace-mcp:latest
+```
+*(Alternatively, build locally: `docker build -t agent-workspace-mcp .`)*
+
+### 2. Programmatic Usage (OpenAI Agents SDK)
+Here is a quick boilerplate showing how to use the containerized workspace programmatically using the standard `openai-agents` SDK:
+
+```python
+import asyncio
+from agents import Agent, Runner
+from agents.mcp import MCPServerStdio
+
+async def main():
+    # 1. Configure the MCP Server to run via Docker
+    server = MCPServerStdio(
+        name="Sandboxed Workspace",
+        params={
+            "command": "docker",
+            "args": [
+                "run", "-i", "--rm", "--init",
+                "--memory=2g", "--cpus=2.0",
+                "--pids-limit=256",
+                "--cap-drop=ALL", "--security-opt=no-new-privileges:true",
+                "--read-only",
+                "--tmpfs", "/tmp:size=64m",
+                "--tmpfs", "/home/mcpuser/.cache:size=512m",
+                "--user", "1000:1000", # Replace with your host UID:GID
+                "-v", "/path/to/your/projects:/workspace",
+                "ghcr.io/hrrodan/agent-workspace-mcp:latest",
+            ],
+        },
+        client_session_timeout_seconds=60.0,
+    )
+
+    # 2. Attach server to the Agent
+    agent = Agent(
+        name="WorkspaceAgent",
+        instructions="You are a coding agent with access to a secure workspace. Use your tools to manage files and run bash commands.",
+        mcp_servers=[server],
+    )
+
+    # 3. Execute a workflow
+    async with server:
+        result = await Runner.run(
+            agent, 
+            "Create a python script in the workspace to print the first 10 Fibonacci numbers, then run it."
+        )
+        print(f"Agent's Final Output:\n{result.final_output}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-### 2. Configure Your MCP Client
+### 3. Use with MCP Clients (Claude / Cursor)
 Add the following configuration to your `claude_desktop_config.json` or Cursor settings.
 
 ```json
@@ -58,10 +111,9 @@ Add the following configuration to your `claude_desktop_config.json` or Cursor s
         "--read-only",
         "--tmpfs", "/tmp:size=64m",
         "--tmpfs", "/home/mcpuser/.cache:size=512m",
-        "--env", "UV_PROJECT_ENVIRONMENT=/workspace/.venv_container",
         "--user", "1000:1000",
         "-v", "/path/to/your/projects:/workspace",
-        "agent-workspace-mcp"
+        "ghcr.io/hrrodan/agent-workspace-mcp:latest"
       ]
     }
   }
@@ -90,29 +142,6 @@ Add the following configuration to your `claude_desktop_config.json` or Cursor s
 
 ---
 
-## 🤖 Agent Workflow Guidelines
-
-To maximize efficiency, include these guidelines in your agent's system prompt or custom instructions:
-
-### 🐍 Workflow A: Single Scripts (PEP 723)
-For simple, standalone tools, use PEP 723 inline metadata:
-```python
-# /// script
-# dependencies = ["httpx", "pandas"]
-# ///
-import httpx
-...
-```
-Execute using: `run_bash(command="uv run script.py")`.
-
-### 📂 Workflow B: Complex Projects
-For multi-file applications:
-1. Initialize: `run_bash(command="uv init")`
-2. Add dependencies: `run_bash(command="uv add <package>")`
-3. Execute entry point: `run_bash(command="uv run <main_file>")`
-
----
-
 ## ⚙️ Configuration
 
 The server supports the following environment variables (passed via Docker `--env`):
@@ -129,13 +158,27 @@ The server supports the following environment variables (passed via Docker `--en
 
 ## 🛡️ Security Model
 
-This server is designed with a **defense-in-depth** strategy:
-- **Least Privilege**: The container runs as a non-root user (`mcpuser`).
-- **Kernel Isolation**: Drops all Linux capabilities (`--cap-drop=ALL`).
-- **Immutable Core**: The root filesystem is mounted read-only (`--read-only`).
-- **Resource Quotas**: Memory and CPU caps prevent host system degradation.
-- **Path Guard**: Boundary enforcement prevents path traversal attacks outside `/workspace`.
-- **Ephemeral Sessions**: Containers are destroyed (`--rm`) immediately upon disconnection.
+This server is designed with a **defense-in-depth** strategy, providing multiple layers of isolation and protection:
+
+### 🐋 Container-Level Security
+- **Non-Root Execution**: The container runs under a dedicated `mcpuser` (UID 1000).
+- **Kernel Hardening**: All Linux capabilities are dropped (`--cap-drop=ALL`).
+- **Privilege Lockdown**: Prevents processes from gaining new privileges (`no-new-privileges:true`).
+- **Immutable Core**: The root filesystem is mounted **read-only** (`--read-only`).
+- **Resource Quotas**: Hard limits on CPU, Memory, and PIDs prevent fork-bombs and host exhaustion.
+- **Ephemeral Sessions**: Containers are strictly ephemeral (`--rm`), ensuring no state survives between connections.
+
+### 🛡️ Application-Level Security
+- **Path Guard**: Strict boundary enforcement prevents path traversal attacks outside `/workspace`.
+- **Command Control**: Mandatory timeouts (default 60s) and process group isolation capture and kill orphan processes.
+- **AST Validation**: `search_and_replace` validates Python, JSON, and TOML syntax in-memory before writing any changes.
+- **Atomic Operations**: File edits use temp-and-move logic to prevent filesystem corruption during power-loss or crashes.
+- **Size Enforcement**: Hard limits on file reads (1MB) and command outputs (50KB) protect against memory-overload attacks.
+
+### 📊 Observability & Auditing
+- **Real-time Logging**: All tool invocations are logged directly to the MCP client for immediate operator visibility.
+- **Sanitized Errors**: Internal system paths and stack traces are suppressed in tool outputs to prevent information leakage.
+- **Search Exclusions**: High-noise or sensitive directories (`.git`, `.venv`) are automatically excluded from search tools.
 
 ---
 
@@ -143,8 +186,8 @@ This server is designed with a **defense-in-depth** strategy:
 
 1. **Install Dev Dependencies**: `uv sync`
 2. **Run Linting**: `uv run ruff check .`
-3. **Run Unit Tests**: `uv run pytest tests/ --ignore=tests/test_live_workflow.py`
-4. **Run E2E Tests**: Set `OPENROUTER_API_KEY` and run `uv run pytest tests/test_live_workflow.py`
+3. **Run Unit Tests**: `uv run pytest tests/ --ignore=tests/integration/`
+4. **Run Integration Tests**: Set `OPENROUTER_API_KEY` and run `uv run pytest tests/integration/`
 
 ---
 &copy; 2026 HrRodan. Licensed under [MIT](LICENSE).
