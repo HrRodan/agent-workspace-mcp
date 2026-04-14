@@ -64,6 +64,8 @@ jobs:
           | head -1 | grep '"jsonrpc":"2.0"'
 
   docker-publish:
+    # Use pyproject.toml as the source of truth for versions. 
+    # This job triggers only on push to main (tagless flow).
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: docker-build
@@ -87,6 +89,7 @@ jobs:
       - name: Get version from pyproject.toml
         id: get_version
         run: |
+          # Extract version string from pyproject.toml (e.g., version = "1.0.1")
           VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Extract metadata (tags, labels) for Docker
@@ -95,10 +98,14 @@ jobs:
         with:
           images: ghcr.io/${{ steps.repo.outputs.name }}
           tags: |
+            # Tag image with the explicit version from pyproject.toml
             type=raw,value=${{ steps.get_version.outputs.version }}
+            # Also maintain a 'latest' tag for convenience
             type=raw,value=latest,enable={{is_default_branch}}
       - name: Sync server.json version
         run: |
+          # Dynamically patch server.json before publishing to registry.
+          # This ensures the OCI identifier correctly matches the image we just built.
           VERSION=${{ steps.get_version.outputs.version }}
           REPO_NAME=${{ steps.repo.outputs.name }}
           jq --arg v "$VERSION" --arg r "ghcr.io/$REPO_NAME:$VERSION" \
