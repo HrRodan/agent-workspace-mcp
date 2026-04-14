@@ -1,13 +1,12 @@
 [project]
 name = "agent-workspace-mcp"
-version = "0.1.0"
+version = "1.0.0"
 description = "A sandboxed, agentic workspace MCP server for LLMs."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "fastmcp>=3.2.3",
     "pydantic>=2.0",
-    "python-dotenv>=1.2.2",
     "ruff>=0.9",
 ]
 
