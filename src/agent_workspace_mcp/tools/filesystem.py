@@ -14,14 +14,11 @@ async def read_file(
     ],
     ctx: Context,
 ) -> str:
-    """Read the contents of a file from the workspace.
+    """Read a text file and return its contents as a plain string.
 
-    Args:
-        filepath: Path to the file, relative to /workspace.
-        ctx: Auto-injected FastMCP context.
-
-    Returns:
-        The content of the file as a string.
+    Returns the raw file content without line numbers. Text files only —
+    binary files are rejected. Maximum file size: 1 MB. For larger files,
+    use `run_bash` with `head`, `tail`, or `grep` to read specific portions.
     """
     try:
         path = security.safe_path(filepath)
@@ -56,18 +53,19 @@ async def write_file(
     filepath: Annotated[
         str, Field(description="Path to the file, relative to /workspace.")
     ],
-    content: Annotated[str, Field(description="String content to write to the file.")],
+    content: Annotated[
+        str,
+        Field(description="The complete file content to write."),
+    ],
     ctx: Context,
 ) -> str:
-    """Write content to a file in the workspace.
+    """Create or overwrite a file with the given content.
 
-    Args:
-        filepath: Path to the file, relative to /workspace.
-        content: String content to write.
-        ctx: Auto-injected FastMCP context.
+    Creates the file and any missing parent directories if they don't exist.
+    If the file already exists, it is fully replaced. The write is atomic
+    (temp file + rename) so readers never see a partial write.
 
-    Returns:
-        A success message with the number of bytes written.
+    For targeted edits to an existing file, prefer `search_and_replace`.
     """
     try:
         path = security.safe_path(filepath)
@@ -90,18 +88,23 @@ async def write_file(
 
 async def list_directory(
     directory_path: Annotated[
-        str, Field(description="Path to the directory, relative to /workspace.")
+        str,
+        Field(
+            description=(
+                "Path to the directory, relative to /workspace. "
+                "Defaults to '.' (workspace root)."
+            )
+        ),
     ] = ".",
     ctx: Context = None,
 ) -> str:
-    """List the contents of a directory in the workspace.
+    """List immediate children of a directory (non-recursive).
 
-    Args:
-        directory_path: Path to the directory, relative to /workspace.
-        ctx: Auto-injected FastMCP context.
+    Returns one line per entry, sorted directories-first:
+    - Directories: `[DIR]  relative/path/`
+    - Files:       `[FILE] relative/path (size bytes)`
 
-    Returns:
-        A formatted listing of files and directories.
+    For recursive file discovery, use `search_workspace` with a glob pattern.
     """
     try:
         path = security.safe_path(directory_path)
@@ -138,18 +141,14 @@ async def list_directory(
 
 async def get_file_info(
     filepath: Annotated[
-        str, Field(description="Path to the item, relative to /workspace.")
+        str, Field(description="Path to the file or directory, relative to /workspace.")
     ],
     ctx: Context,
 ) -> str:
-    """Get metadata for a specific file or directory.
+    """Get metadata (size, modification time, permissions) without reading file content.
 
-    Args:
-        filepath: Path to the item, relative to /workspace.
-        ctx: Auto-injected FastMCP context.
-
-    Returns:
-        Formatted info including size, modification time, and permissions.
+    Use this instead of `read_file` when you only need to check whether a file
+    exists, how large it is, or when it was last modified.
     """
     try:
         path = security.safe_path(filepath)
@@ -180,17 +179,23 @@ async def get_file_info(
 
 
 async def search_workspace(
-    pattern: Annotated[str, Field(description="Glob pattern (e.g., '**/*.py').")],
+    pattern: Annotated[
+        str,
+        Field(
+            description=(
+                "Glob pattern to match file paths. "
+                "Examples: '**/*.py' (all Python files), 'src/**/*.json', '*.md'."
+            )
+        ),
+    ],
     ctx: Context,
 ) -> str:
-    """Search for files in the workspace using a glob pattern.
+    """Find files by name/path pattern (glob). Does NOT search file contents.
 
-    Args:
-        pattern: Glob pattern (e.g., '**/*.py').
-        ctx: Auto-injected FastMCP context.
+    Returns up to 50 matching file paths relative to /workspace.
+    Common directories (.git, __pycache__, .venv) are excluded automatically.
 
-    Returns:
-        A list of matching files, relative to /workspace.
+    To search inside files by content, use `run_bash` with `grep -r "pattern" .`.
     """
     try:
         await ctx.info(f"Searching for pattern: {pattern}")

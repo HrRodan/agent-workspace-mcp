@@ -30,7 +30,8 @@ WORKDIR /app
 # Enable byte compilation for faster startup
 # ENV UV_LINK_MODE=copy ensures compatibility across Docker layers
 ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    PYTHONUNBUFFERED=1
 
 # Copy the dependency files first to leverage Docker layer caching
 COPY pyproject.toml uv.lock ./
@@ -55,10 +56,11 @@ WORKDIR /workspace
 
 # Set environments to avoid polluting host machine's venvs via mounts
 # This ensures any 'uv run' executed by agents inside /workspace gets a localized environment
-ENV UV_PROJECT_ENVIRONMENT=/workspace/.venv_container
+ENV UV_PROJECT_ENVIRONMENT=/workspace/.venv_container \
+    PATH="/app/.venv/bin:$PATH"
 
 # Switch to the non-root user before executing
 USER mcpuser
 
 # Execute the server using its dedicated virtual environment
-ENTRYPOINT ["/app/.venv/bin/python", "-m", "agent_workspace_mcp.server"]
+ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]

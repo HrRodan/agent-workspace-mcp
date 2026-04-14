@@ -14,18 +14,25 @@ from agent_workspace_mcp.tools.execution import run_bash
 
 async def apply_patch(
     patch_content: Annotated[
-        str, Field(description="The content of the unified diff.")
+        str,
+        Field(
+            description=(
+                "A unified diff in standard patch format. "
+                "File paths in the diff must be relative to /workspace "
+                "(e.g., '--- a/src/main.py')."
+            )
+        ),
     ],
     ctx: Context,
 ) -> str:
-    """Apply a Unified Diff (.patch format) to the workspace using the native 'patch' utility.
+    """Apply a unified diff to one or more workspace files.
 
-    Args:
-        patch_content: The content of the unified diff.
-        ctx: Auto-injected FastMCP context.
+    Expects standard unified diff format with `--- a/path` / `+++ b/path` headers.
+    Paths inside the diff must be relative to /workspace. Applied with `patch -p1`.
 
-    Returns:
-        The output of the patch command or an error message.
+    For single-location edits, prefer `search_and_replace` (simpler, with syntax
+    validation). Use `apply_patch` when changing multiple locations across one or
+    more files in a single operation.
     """
     temp_patch = None
     try:
@@ -61,21 +68,29 @@ async def search_and_replace(
         str, Field(description="Path to the file, relative to /workspace.")
     ],
     exact_search_block: Annotated[
-        str, Field(description="The exact string to search for (must be unique).")
+        str,
+        Field(
+            description=(
+                "The exact substring to find, including all whitespace and "
+                "indentation. Must appear exactly once in the file. If not "
+                "unique, include more surrounding lines for context."
+            )
+        ),
     ],
-    replace_block: Annotated[str, Field(description="The string to replace it with.")],
+    replace_block: Annotated[
+        str, Field(description="The replacement string that will take its place.")
+    ],
     ctx: Context,
 ) -> str:
-    """Swap a specific string block in a file with a replacement block.
+    """Replace an exact substring in a file with new content.
 
-    Args:
-        filepath: Path to the file, relative to /workspace.
-        exact_search_block: The exact string to search for (must be unique).
-        replace_block: The string to replace it with.
-        ctx: Auto-injected FastMCP context.
+    Performs a literal, whitespace-sensitive match — the search block must
+    appear exactly once in the file and match character-for-character
+    (including indentation and newlines). Use `read_file` first to copy the
+    exact text you want to replace.
 
-    Returns:
-        A success message or an actionable error message.
+    After replacement, the tool validates syntax for .py, .json, and .toml
+    files and rejects the edit if it would introduce a parse error.
     """
     try:
         path = security.safe_path(filepath)

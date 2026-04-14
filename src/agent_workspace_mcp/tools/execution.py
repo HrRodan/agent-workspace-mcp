@@ -10,24 +10,44 @@ from agent_workspace_mcp.utils import security
 
 
 async def run_bash(
-    command: Annotated[str, Field(description="The bash command to execute.")],
+    command: Annotated[
+        str,
+        Field(
+            description=(
+                "The shell command to execute. "
+                "All Python operations MUST use `uv` (see tool description for details)."
+            )
+        ),
+    ],
     timeout: Annotated[
         int,
         Field(
-            description="Seconds before the command is killed (defaults to COMMAND_TIMEOUT)."
+            description=(
+                "Max seconds before the command is killed. "
+                "Default: 60s. Increase for long builds or large downloads."
+            )
         ),
     ] = None,
     ctx: Context = None,
 ) -> str:
-    """Execute a shell command in the /workspace directory.
+    """Execute a shell command in the sandboxed /workspace directory.
 
-    Args:
-        command: The bash command to execute.
-        timeout: Seconds before the command is killed (defaults to COMMAND_TIMEOUT).
-        ctx: Auto-injected FastMCP context.
+    Environment:
+    - Working directory: /workspace (all relative paths resolve here).
+    - Shell: /bin/sh. Supports pipes, redirects, &&, ||, etc.
+    - Output: Returns "[Exit code: N]" followed by merged stdout+stderr.
+      Output is truncated at 50 KB — use `head`, `tail`, or `grep` for large outputs.
+    - Timeout: The process is killed after `timeout` seconds (default 60s).
 
-    Returns:
-        Combined stdout and stderr of the command, prefixed with the exit code.
+    Python & Dependency Management (CRITICAL — uv only):
+    - Run a script:        `uv run script.py`       (NOT `python script.py`)
+    - Add a dependency:    `uv add <pkg>`            (NOT `pip install`)
+    - Remove a dependency: `uv remove <pkg>`
+    - Install a CLI tool:  `uv tool install <pkg>`   (NOT `pipx`)
+    - Run a one-off tool:  `uvx <tool>`              (e.g., `uvx ruff check .`)
+    - Init a new project:  `uv init`
+    - Sync environment:    `uv sync`
+    `python` and `pip` are NOT available. Always use `uv`.
     """
     if timeout is None:
         timeout = security.COMMAND_TIMEOUT
@@ -94,18 +114,25 @@ async def run_bash(
 
 async def lint_workspace(
     path: Annotated[
-        str, Field(description="Path to lint, relative to /workspace.")
+        str,
+        Field(
+            description=(
+                "File or directory to lint, relative to /workspace. "
+                "Defaults to '.' (entire workspace)."
+            )
+        ),
     ] = ".",
     ctx: Context = None,
 ) -> str:
-    """Proactively execute ruff check and ruff format --check on the workspace.
+    """Run Python linting and format-checking on workspace files.
 
-    Args:
-        path: Path to lint, relative to /workspace.
-        ctx: Auto-injected FastMCP context.
+    Call this after creating or modifying Python files to catch errors early.
+    Runs two passes:
+    1. `ruff check` — lint rules (unused imports, type errors, style violations).
+    2. `ruff format --check` — formatting compliance (does NOT auto-fix).
 
-    Returns:
-        Lint and formatting diagnostics.
+    Returns "No lint or formatting issues found" when clean, or the full
+    diagnostics with file paths and line numbers when issues are detected.
     """
     try:
         resolved_path = security.safe_path(path)
