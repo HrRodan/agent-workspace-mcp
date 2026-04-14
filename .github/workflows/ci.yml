@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
   schedule:
@@ -68,6 +69,8 @@ jobs:
     needs: docker-build
     permissions:
       packages: write
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - name: Log in to GHCR
@@ -81,17 +84,25 @@ jobs:
       - name: Lowercase Repository Name
         id: repo
         run: echo "name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+      - name: Get version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ steps.repo.outputs.name }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.get_version.outputs.version }}
             type=raw,value=latest,enable={{is_default_branch}}
+      - name: Sync server.json version
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          REPO_NAME=${{ steps.repo.outputs.name }}
+          jq --arg v "$VERSION" --arg r "ghcr.io/$REPO_NAME:$VERSION" \
+            '.version = $v | .packages[0].identifier = $r' server.json > server.tmp && mv server.tmp server.json
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
@@ -101,3 +112,12 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Publish to MCP Registry
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+      - name: Publish server to MCP Registry
+        run: ./mcp-publisher publish
