@@ -1,9 +1,7 @@
 import pytest
-from pathlib import Path
 from agent_workspace_mcp.tools.filesystem import (
     read_file, write_file, list_directory, get_file_info, search_workspace
 )
-from agent_workspace_mcp.utils.security import MAX_READ_SIZE_BYTES
 
 @pytest.mark.asyncio
 async def test_read_file(workspace, mock_ctx):

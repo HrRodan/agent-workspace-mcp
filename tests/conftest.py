@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 
+
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Provide a temporary workspace and patch WORKSPACE_ROOT to point to it."""
@@ -11,6 +12,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "agent_workspace_mcp.utils.security.WORKSPACE_ROOT", resolved_tmp
     )
     return resolved_tmp
+
 
 @pytest.fixture
 def mock_ctx() -> MagicMock:

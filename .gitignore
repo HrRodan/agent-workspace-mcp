@@ -160,7 +160,7 @@ venv.bak/
 # temp folder contents
 tmp/*
 scratch/
-test/tmp/*
+tests/tmp/*
 
 # Spyder project settings
 .spyderproject

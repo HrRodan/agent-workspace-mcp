@@ -14,8 +14,9 @@ load_dotenv()
 # Skip tests if no API key is available
 pytestmark = pytest.mark.skipif(
     not os.environ.get("OPENROUTER_API_KEY"),
-    reason="OPENROUTER_API_KEY not found in environment"
+    reason="OPENROUTER_API_KEY not found in environment",
 )
+
 
 @pytest.mark.asyncio
 async def test_agent_qa_cycle():
@@ -31,7 +32,7 @@ async def test_agent_qa_cycle():
     tmp_dir = root_dir / "tmp"
     tmp_dir.mkdir(exist_ok=True)
     abs_tmp_dir = str(tmp_dir.resolve())
-    
+
     qa_file = tmp_dir / "qa_target.py"
     if qa_file.exists():
         qa_file.unlink()
@@ -42,22 +43,32 @@ async def test_agent_qa_cycle():
         params={
             "command": "docker",
             "args": [
-                "run", "-i", "--rm",
-                "--user", "1000:1000",
-                "--security-opt", "no-new-privileges",
-                "--cap-drop", "ALL",
+                "run",
+                "-i",
+                "--rm",
+                "--user",
+                "1000:1000",
+                "--security-opt",
+                "no-new-privileges",
+                "--cap-drop",
+                "ALL",
                 "--init",
-                "--memory", "512m",
-                "--cpus", "0.5",
-                "-v", f"{abs_tmp_dir}:/workspace",
-                "agent-workspace-mcp"
-            ]
+                "--memory",
+                "512m",
+                "--cpus",
+                "0.5",
+                "-v",
+                f"{abs_tmp_dir}:/workspace",
+                "agent-workspace-mcp",
+            ],
         },
-        client_session_timeout_seconds=60.0
+        client_session_timeout_seconds=60.0,
     )
 
     # 3. Define the Agent
-    model_name = os.environ.get("DEFAULT_MODEL", "openrouter/google/gemini-2.0-flash-001")
+    model_name = os.environ.get(
+        "DEFAULT_MODEL", "openrouter/google/gemini-2.0-flash-001"
+    )
     agent = Agent(
         name="QAAgent",
         instructions=(
@@ -66,7 +77,7 @@ async def test_agent_qa_cycle():
             "fix them using editing tools, and verify the final state using metadata and linting tools."
         ),
         model=LitellmModel(model=model_name),
-        mcp_servers=[server]
+        mcp_servers=[server],
     )
 
     # 4. Run the QA Mission
@@ -79,30 +90,30 @@ async def test_agent_qa_cycle():
         "4. Run `lint_workspace` again to verify the file is now clean.\n"
         "5. Use `get_file_info` to report the final file size and modification time."
     )
-    
+
     with trace("MCP-QA-Cycle"):
         async with server:
             result = await Runner.run(
-                agent, 
-                mission, 
-                max_turns=20,
-                run_config=RunConfig()
+                agent, mission, max_turns=20, run_config=RunConfig()
             )
-            
+
             # 5. Verification
             print(f"\nQA Agent Final Output:\n{result.final_output}")
-            
+
             # Check if file exists and looks clean
             assert qa_file.exists(), "qa_target.py was not created"
             content = qa_file.read_text()
             print(f"\n--- qa_target.py final content ---\n{content}")
-            
+
             # Unused imports should be gone if agent followed instructions
-            assert "import sys" not in content or "qa_target.py" not in content # Or it fixed it
-            
+            assert (
+                "import sys" not in content or "qa_target.py" not in content
+            )  # Or it fixed it
+
             # The final output should mention file info
             output_lower = str(result.final_output).lower()
             assert "bytes" in output_lower or "size" in output_lower
+
 
 if __name__ == "__main__":
     asyncio.run(test_agent_qa_cycle())

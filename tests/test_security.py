@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import pytest
-from agent_workspace_mcp.utils.security import safe_path, is_binary, WORKSPACE_ROOT
+from agent_workspace_mcp.utils.security import safe_path, is_binary
 
 def test_safe_path_relative(monkeypatch, tmp_path):
     monkeypatch.setattr("agent_workspace_mcp.utils.security.WORKSPACE_ROOT", tmp_path)
