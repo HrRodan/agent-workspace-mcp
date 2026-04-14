@@ -23,7 +23,7 @@ EXPECTED_FIB_1123 = 220614980192688136944979398836930727650375039350482213170310
 @pytest.mark.asyncio
 async def test_native_mcp_fibonacci():
     # 1. Setup workspace
-    root_dir = Path(__file__).parent.parent
+    root_dir = Path(__file__).parent.parent.parent
     tmp_dir = root_dir / "tmp"
     tmp_dir.mkdir(exist_ok=True)
     abs_tmp_dir = str(tmp_dir.resolve())

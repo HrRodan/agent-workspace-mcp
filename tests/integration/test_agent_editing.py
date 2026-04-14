@@ -29,7 +29,7 @@ EXPECTED_FIB_400_DIV_2 = (
 @pytest.mark.asyncio
 async def test_agent_file_editing():
     # 1. Setup workspace
-    root_dir = Path(__file__).parent.parent
+    root_dir = Path(__file__).parent.parent.parent
     tmp_dir = root_dir / "tmp"
     tmp_dir.mkdir(exist_ok=True)
     abs_tmp_dir = str(tmp_dir.resolve())

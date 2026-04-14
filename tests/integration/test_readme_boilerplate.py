@@ -25,8 +25,8 @@ async def test_readme_boilerplate():
     # 1. Setup workspace (dynamic for test environment)
     # File is in tests/integration/test_readme_boilerplate.py
     # .parent is tests/integration/
-    # .parent.parent is tests/
-    root_dir = Path(__file__).parent.parent
+    # .parent.parent.parent is project root/
+    root_dir = Path(__file__).parent.parent.parent
     tmp_dir = root_dir / "tmp"
     tmp_dir.mkdir(exist_ok=True)
     abs_tmp_dir = str(tmp_dir.resolve())
