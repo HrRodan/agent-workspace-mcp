@@ -3,12 +3,19 @@ import ast
 import json
 import tomllib
 import tempfile
+from typing import Annotated
+from pydantic import Field
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools.execution import run_bash
 
 
-async def apply_patch(patch_content: str, ctx: Context) -> str:
+async def apply_patch(
+    patch_content: Annotated[
+        str, Field(description="The content of the unified diff.")
+    ],
+    ctx: Context,
+) -> str:
     """Apply a Unified Diff (.patch format) to the workspace using the native 'patch' utility.
 
     Args:
@@ -48,7 +55,14 @@ async def apply_patch(patch_content: str, ctx: Context) -> str:
 
 
 async def search_and_replace(
-    filepath: str, exact_search_block: str, replace_block: str, ctx: Context
+    filepath: Annotated[
+        str, Field(description="Path to the file, relative to /workspace.")
+    ],
+    exact_search_block: Annotated[
+        str, Field(description="The exact string to search for (must be unique).")
+    ],
+    replace_block: Annotated[str, Field(description="The string to replace it with.")],
+    ctx: Context,
 ) -> str:
     """Swap a specific string block in a file with a replacement block.
 
@@ -105,7 +119,7 @@ async def search_and_replace(
         elif ext == ".toml":
             try:
                 tomllib.loads(new_content)
-            except Exception as e:
+            except tomllib.TOMLDecodeError as e:
                 return f"ERROR: TOML parse error: {str(e)}. Fix and retry."
 
         # 5. Write atomically

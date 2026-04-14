@@ -1,9 +1,20 @@
 import asyncio
+from typing import Annotated
+from pydantic import Field
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
 
 
-async def run_bash(command: str, timeout: int = None, ctx: Context = None) -> str:
+async def run_bash(
+    command: Annotated[str, Field(description="The bash command to execute.")],
+    timeout: Annotated[
+        int,
+        Field(
+            description="Seconds before the command is killed (defaults to COMMAND_TIMEOUT)."
+        ),
+    ] = None,
+    ctx: Context = None,
+) -> str:
     """Execute a shell command in the /workspace directory.
 
     Args:
@@ -70,7 +81,12 @@ async def run_bash(command: str, timeout: int = None, ctx: Context = None) -> st
         return error_msg
 
 
-async def lint_workspace(path: str = ".", ctx: Context = None) -> str:
+async def lint_workspace(
+    path: Annotated[
+        str, Field(description="Path to lint, relative to /workspace.")
+    ] = ".",
+    ctx: Context = None,
+) -> str:
     """Proactively execute ruff check and ruff format --check on the workspace.
 
     Args:

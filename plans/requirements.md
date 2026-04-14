@@ -153,7 +153,7 @@ The `README.md` must be comprehensive and include:
 
 ## 9. Logging & Observability Strategy
 Because the server communicates over `stdio`, `stdout` corruption must be strictly prevented.
-* **Protocol Safety:** Absolutely no `print()` statements. Third-party library `stdout` must be suppressed (redirect `sys.stdout` at import time if necessary).
+* **Protocol Safety:** Absolutely no `print()` statements. At runtime, `sys.stdout` must be redirected to `sys.stderr` to prevent any third-party library or accidental `print()` from corrupting the MCP JSON-RPC stream.
 * **Native MCP Logging:** Use `FastMCP` Context (`await ctx.info()`, `await ctx.error()`, `await ctx.warning()`, `await ctx.debug()`) to stream real-time execution logs directly to the MCP client UI. Also use `await ctx.report_progress()` for long-running tools.
 * **Persistent Diagnostic Logging:** Use Python's `logging` module to maintain a persistent audit trail written to `/workspace/.mcp/server.log`. A `StreamHandler` must concurrently route to `sys.stderr` (safe for `stdio` servers). Use `RotatingFileHandler` to cap log size at 5MB with 2 backups.
 * **Agent-Driven Audit Logging:** System prompts should instruct the agent to use `run_bash` (`echo "step X" >> run.log`) to record its own progress during long workflows.

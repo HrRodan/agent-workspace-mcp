@@ -1,10 +1,17 @@
 import os
 import datetime
+from typing import Annotated
+from pydantic import Field
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
 
 
-async def read_file(filepath: str, ctx: Context) -> str:
+async def read_file(
+    filepath: Annotated[
+        str, Field(description="Path to the file, relative to /workspace.")
+    ],
+    ctx: Context,
+) -> str:
     """Read the contents of a file from the workspace.
 
     Args:
@@ -43,7 +50,13 @@ async def read_file(filepath: str, ctx: Context) -> str:
         return f"ERROR: {str(e)}"
 
 
-async def write_file(filepath: str, content: str, ctx: Context) -> str:
+async def write_file(
+    filepath: Annotated[
+        str, Field(description="Path to the file, relative to /workspace.")
+    ],
+    content: Annotated[str, Field(description="String content to write to the file.")],
+    ctx: Context,
+) -> str:
     """Write content to a file in the workspace.
 
     Args:
@@ -73,7 +86,12 @@ async def write_file(filepath: str, content: str, ctx: Context) -> str:
         return f"ERROR: {str(e)}"
 
 
-async def list_directory(directory_path: str = ".", ctx: Context = None) -> str:
+async def list_directory(
+    directory_path: Annotated[
+        str, Field(description="Path to the directory, relative to /workspace.")
+    ] = ".",
+    ctx: Context = None,
+) -> str:
     """List the contents of a directory in the workspace.
 
     Args:
@@ -116,7 +134,12 @@ async def list_directory(directory_path: str = ".", ctx: Context = None) -> str:
         return f"ERROR: {str(e)}"
 
 
-async def get_file_info(filepath: str, ctx: Context) -> str:
+async def get_file_info(
+    filepath: Annotated[
+        str, Field(description="Path to the item, relative to /workspace.")
+    ],
+    ctx: Context,
+) -> str:
     """Get metadata for a specific file or directory.
 
     Args:
@@ -154,7 +177,10 @@ async def get_file_info(filepath: str, ctx: Context) -> str:
         return f"ERROR: {str(e)}"
 
 
-async def search_workspace(pattern: str, ctx: Context) -> str:
+async def search_workspace(
+    pattern: Annotated[str, Field(description="Glob pattern (e.g., '**/*.py').")],
+    ctx: Context,
+) -> str:
     """Search for files in the workspace using a glob pattern.
 
     Args:

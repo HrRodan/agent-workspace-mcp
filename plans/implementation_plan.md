@@ -212,10 +212,11 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
 ### Step 6: File System Utilities
 - **File**: `src/agent_workspace_mcp/tools/filesystem.py`
 - **Action**: Implement 5 typed async tools. Each function must:
-  1. Accept `ctx: Context` as the last parameter (auto-injected by FastMCP).
-  2. Call `safe_path()` on every user-supplied path.
-  3. Use `await ctx.info(...)` to stream progress to the MCP client.
-  4. Return `str` (FastMCP handles JSON-RPC wrapping).
+  1. Use `Annotated` and `pydantic.Field` for all user-facing parameters to provide rich schema descriptions.
+  2. Accept `ctx: Context` as the last parameter (auto-injected by FastMCP).
+  3. Call `safe_path()` on every user-supplied path.
+  4. Use `await ctx.info(...)` to stream progress to the MCP client.
+  5. Return `str` (FastMCP handles JSON-RPC wrapping).
 
   **Tool specifications:**
 
@@ -374,9 +375,30 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
 - **File**: `src/agent_workspace_mcp/server.py`
 - **Action**:
 
-  #### 9a. Server Instantiation
+  #### 9a. Server Instantiation & Stdout Protection
   ```python
+  import sys
+  import io
   from fastmcp import FastMCP
+
+  # Critical: Redirect stdout to stderr to prevent print corruption of JSON-RPC stream
+  # while preserving sys.stdout.buffer for FastMCP's JSON-RPC byte communication.
+  class StdoutRedirector(io.TextIOBase):
+      def __init__(self, real_stdout):
+          self.real_stdout = real_stdout
+
+      @property
+      def buffer(self):
+          return self.real_stdout.buffer
+
+      def write(self, s):
+          return sys.stderr.write(s)
+
+      def flush(self):
+          return sys.stderr.flush()
+
+  sys.stdout = StdoutRedirector(sys.stdout)
+  ```
 
   mcp = FastMCP(
       "Agent Workspace MCP",
@@ -390,7 +412,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   ```
 
   #### 9b. Tool Registration
-  Use FastMCP's `@mcp.tool()` decorator pattern. Import tool functions from submodules and register them explicitly:
+  Import tool functions from submodules and register them explicitly:
   ```python
   from agent_workspace_mcp.tools.filesystem import (
       read_file, write_file, list_directory, get_file_info, search_workspace,
@@ -398,13 +420,11 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   from agent_workspace_mcp.tools.execution import run_bash, lint_workspace
   from agent_workspace_mcp.tools.editing import apply_patch, search_and_replace
 
-  # Register all tools
+  # Register all tools explicitly to keep submodules independently testable
   mcp.add_tool(read_file)
   mcp.add_tool(write_file)
   # ... etc.
   ```
-
-  Alternatively, if using `@mcp.tool()` directly in each submodule, the server module must import those submodules to trigger the decorator registration. **Decision: Use the standalone `@tool` decorator in submodules and import via `mcp.add_tool()` in `server.py`** — this avoids circular imports and keeps each module independently testable.
 
   #### 9c. Logging Setup
   ```python

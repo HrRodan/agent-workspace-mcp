@@ -1,10 +1,34 @@
 import logging
 import sys
+import io
 from logging.handlers import RotatingFileHandler
 from fastmcp import FastMCP
 
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools import filesystem, execution, editing
+
+
+# Redirect stdout to stderr to prevent any accidental prints from corrupting the JSON-RPC stream.
+# FastMCP/MCP servers communicate over stdout.buffer; text prints go to sys.stdout.write.
+class StdoutRedirector(io.TextIOBase):
+    def __init__(self, real_stdout):
+        self.real_stdout = real_stdout
+
+    @property
+    def buffer(self):
+        # FastMCP and the MCP SDK use sys.stdout.buffer for raw JSON-RPC bytes.
+        return self.real_stdout.buffer
+
+    def write(self, s):
+        # Accidental prints to sys.stdout are redirected to sys.stderr.
+        return sys.stderr.write(s)
+
+    def flush(self):
+        return sys.stderr.flush()
+
+
+sys.stdout = StdoutRedirector(sys.stdout)
+
 
 # Initialize FastMCP server
 mcp = FastMCP(
