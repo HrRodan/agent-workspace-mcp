@@ -45,13 +45,10 @@ mcp = FastMCP(
 # Filesystem tools
 mcp.add_tool(filesystem.read_file)
 mcp.add_tool(filesystem.write_file)
-mcp.add_tool(filesystem.list_directory)
-mcp.add_tool(filesystem.get_file_info)
 mcp.add_tool(filesystem.search_workspace)
 
 # Execution tools
 mcp.add_tool(execution.run_bash)
-mcp.add_tool(execution.lint_workspace)
 
 # Editing tools
 mcp.add_tool(editing.apply_patch)

@@ -1,7 +1,6 @@
 """Filesystem tools for the Agent Workspace MCP."""
 
 import os
-import datetime
 from typing import Annotated
 from pydantic import Field
 from fastmcp import Context
@@ -86,96 +85,8 @@ async def write_file(
         return f"ERROR: {str(e)}"
 
 
-async def list_directory(
-    directory_path: Annotated[
-        str,
-        Field(
-            description=(
-                "Path to the directory, relative to /workspace. "
-                "Defaults to '.' (workspace root)."
-            )
-        ),
-    ] = ".",
-    ctx: Context = None,
-) -> str:
-    """List immediate children of a directory (non-recursive).
-
-    Returns one line per entry, sorted directories-first:
-    - Directories: `[DIR]  relative/path/`
-    - Files:       `[FILE] relative/path (size bytes)`
-
-    For recursive file discovery, use `search_workspace` with a glob pattern.
-    """
-    try:
-        path = security.safe_path(directory_path)
-        if ctx:
-            await ctx.info(f"Listing directory: {directory_path}")
-
-        if not path.exists():
-            return f"ERROR: Directory '{directory_path}' not found."
-
-        if not path.is_dir():
-            return f"ERROR: '{directory_path}' is not a directory."
-
-        entries = []
-        for item in sorted(
-            path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
-        ):
-            rel_path = item.relative_to(security.WORKSPACE_ROOT)
-            if item.is_dir():
-                entries.append(f"[DIR]  {rel_path}/")
-            else:
-                size = item.stat().st_size
-                entries.append(f"[FILE] {rel_path} ({size} bytes)")
-
-        if not entries:
-            return f"Directory '{directory_path}' is empty."
-
-        return "\n".join(entries)
-
-    except Exception as e:
-        if ctx:
-            await ctx.error(f"Failed to list {directory_path}: {str(e)}")
-        return f"ERROR: {str(e)}"
 
 
-async def get_file_info(
-    filepath: Annotated[
-        str, Field(description="Path to the file or directory, relative to /workspace.")
-    ],
-    ctx: Context,
-) -> str:
-    """Get metadata (size, modification time, permissions) without reading file content.
-
-    Use this instead of `read_file` when you only need to check whether a file
-    exists, how large it is, or when it was last modified.
-    """
-    try:
-        path = security.safe_path(filepath)
-        await ctx.info(f"Getting info for: {filepath}")
-
-        if not path.exists():
-            return f"ERROR: '{filepath}' not found."
-
-        stats = path.stat()
-        mod_time = datetime.datetime.fromtimestamp(
-            stats.st_mtime, tz=datetime.timezone.utc
-        ).isoformat()
-        perms = oct(stats.st_mode & 0o777)
-        item_type = "directory" if path.is_dir() else "file"
-
-        info = [
-            f"Path: {path.relative_to(security.WORKSPACE_ROOT)}",
-            f"Size: {stats.st_size} bytes",
-            f"Modified: {mod_time}",
-            f"Permissions: {perms}",
-            f"Type: {item_type}",
-        ]
-        return "\n".join(info)
-
-    except Exception as e:
-        await ctx.error(f"Failed to get info for {filepath}: {str(e)}")
-        return f"ERROR: {str(e)}"
 
 
 async def search_workspace(
