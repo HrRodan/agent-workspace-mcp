@@ -24,16 +24,33 @@ A unified Model Context Protocol (MCP) server providing a **highly secure, conta
 
 ```mermaid
 flowchart TD
-    Client["MCP Client (Claude / Cursor)"] -- "stdio (JSON-RPC)" --> Server["FastMCP Server"]
+    Client["MCP Client (Claude / Cursor)"] -- "stdio (JSON-RPC)" --> FastMCP["FastMCP Server"]
 
-    subgraph Sandbox ["Docker Sandbox (Isolated)"]
+    subgraph Sandbox ["Docker Sandbox Container (mcpuser)"]
         direction TB
-        Server -- "Subprocess" --> Bash["Bash / Shell"]
-        Server -- "API" --> FS["Filesystem Utilities"]
-        Server -- "Subprocess" --> UV["uv / Ruff / Python"]
+        
+        FastMCP -. "Intercepts accidental prints" .-> StdioGuard["StdoutRedirector"]
+        FastMCP -. "Application Logs" .-> Logger["Dual Logger (stderr & .mcp/server.log)"]
+        
+        FastMCP -- "Tool Calls" --> SecurityGuard["Security & Path Validator"]
+        
+        subgraph Toolset ["Tool Modules"]
+            direction TB
+            SecurityGuard --> FSTools["Filesystem (read, write, search, info)"]
+            SecurityGuard --> EditTools["Editing (search_and_replace, apply_patch)"]
+            SecurityGuard --> ExecTools["Execution (run_bash, lint_workspace)"]
+        end
+
+        EditTools -- "AST Verification" --> Validator["Syntax Validations (Python, JSON, TOML)"]
+        ExecTools -- "Process Group (Timeout=60s)" --> Shell["/bin/sh Subprocess"]
+        Shell -- "Package Mgt & Checks" --> UV["uv Environment / Ruff"]
+        
+        FSTools -- "Secure I/O" --> Workspace["/workspace Directory"]
+        EditTools -- "Atomic Writes" --> Workspace
+        Shell -- "Executes within" --> Workspace
     end
 
-    FS -- "Mount" --> HostVolume["/workspace (Host Directory)"]
+    Workspace <--"Volume Mount"--> HostFS["User Host Filesystem"]
 ```
 
 ---
