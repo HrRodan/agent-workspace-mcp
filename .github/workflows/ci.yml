@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 # Disable checking temporarily.
-# jobs:
+jobs:
 #   lint-and-type-check:
 #     runs-on: ubuntu-latest
 #     steps:
