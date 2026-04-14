@@ -8,7 +8,15 @@ async def test_run_bash_success(workspace, mock_ctx):
     # but since we are in a sandboxed test environment it's mostly fine.
     # We'll test with a simple echo.
     result = await run_bash("echo 'test'", ctx=mock_ctx)
-    assert result.strip() == "test"
+    assert "[Exit code: 0]" in result
+    assert "test" in result
+    mock_ctx.info.assert_called()
+
+@pytest.mark.asyncio
+async def test_run_bash_failure(workspace, mock_ctx):
+    # Test failure case
+    result = await run_bash("exit 1", ctx=mock_ctx)
+    assert "[Exit code: 1]" in result
     mock_ctx.info.assert_called()
 
 @pytest.mark.asyncio
@@ -23,7 +31,8 @@ async def test_run_bash_truncation(workspace, mock_ctx):
     # Generate 60KB of output
     cmd = "python -c 'print(\"x\" * 60000)'"
     result = await run_bash(cmd, ctx=mock_ctx)
-    assert len(result) < 60000
+    assert "[Exit code: 0]" in result
+    assert len(result) < 65000  # Including header
     assert "output truncated at 50KB" in result
 
 @pytest.mark.asyncio
@@ -32,8 +41,8 @@ async def test_lint_workspace_clean(workspace, mock_ctx):
     with patch("agent_workspace_mcp.tools.execution.run_bash", new_callable=AsyncMock) as mock_run:
         # Mocking both calls (check and format --check)
         mock_run.side_effect = [
-            "All checks passed",
-            "No files would be reformatted"
+            "[Exit code: 0]\nAll checks passed",
+            "[Exit code: 0]\nNo files would be reformatted"
         ]
         
         result = await lint_workspace(".", ctx=mock_ctx)
@@ -43,8 +52,8 @@ async def test_lint_workspace_clean(workspace, mock_ctx):
 async def test_lint_workspace_dirty(workspace, mock_ctx):
     with patch("agent_workspace_mcp.tools.execution.run_bash", new_callable=AsyncMock) as mock_run:
         mock_run.side_effect = [
-            "error: line 1 too long",
-            "would reformat file.py"
+            "[Exit code: 1]\nerror: line 1 too long",
+            "[Exit code: 1]\nwould reformat file.py"
         ]
         
         result = await lint_workspace(".", ctx=mock_ctx)

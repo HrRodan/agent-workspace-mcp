@@ -1,3 +1,5 @@
+"""Editing tools for the Agent Workspace MCP."""
+
 import os
 import ast
 import json
@@ -29,9 +31,9 @@ async def apply_patch(
     try:
         await ctx.info("Applying patch...")
 
-        # Create a temporary patch file in /tmp (which should be tmpfs in container)
+        # Create a temporary patch file in the system temp directory
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".patch", delete=False, dir="/tmp"
+            mode="w", suffix=".patch", delete=False, dir=tempfile.gettempdir()
         ) as tmp:
             tmp.write(patch_content)
             temp_patch = tmp.name

@@ -1,3 +1,5 @@
+"""Filesystem tools for the Agent Workspace MCP."""
+
 import os
 import datetime
 from typing import Annotated
@@ -194,9 +196,11 @@ async def search_workspace(
         await ctx.info(f"Searching for pattern: {pattern}")
 
         matches = []
-        count = 0
+        truncated = False
 
         # We search relative to security.WORKSPACE_ROOT
+        # We need to manually count to handle truncation correctly
+        count = 0
         for path in security.WORKSPACE_ROOT.glob(pattern):
             # Check if any parent directory is in security.SEARCH_EXCLUDE_DIRS
             if any(
@@ -206,11 +210,11 @@ async def search_workspace(
                 continue
 
             if path.is_file():
+                if count >= security.MAX_SEARCH_RESULTS:
+                    truncated = True
+                    break
                 matches.append(str(path.relative_to(security.WORKSPACE_ROOT)))
                 count += 1
-
-            if count >= security.MAX_SEARCH_RESULTS:
-                break
 
         if not matches:
             return f"No files found matching pattern '{pattern}'."
@@ -218,7 +222,7 @@ async def search_workspace(
         result = [f"Found {len(matches)} matches:"]
         result.extend(matches)
 
-        if count >= security.MAX_SEARCH_RESULTS:
+        if truncated:
             result.append(
                 f"... truncated at {security.MAX_SEARCH_RESULTS} results. Narrow your pattern."
             )

@@ -19,13 +19,14 @@ async def test_apply_patch_success(workspace, mock_ctx):
     with patch(
         "agent_workspace_mcp.tools.editing.run_bash", new_callable=AsyncMock
     ) as mock_run:
-        mock_run.return_value = "patching file file.py"
+        mock_run.return_value = "[Exit code: 0]\npatching file file.py"
 
         result = await apply_patch(patch_content, mock_ctx)
+        assert "[Exit code: 0]" in result
         assert "patching file file.py" in result
         mock_run.assert_called_once()
-        # Verify it includes the temp file path correctly
-        assert "patch -p1 < /tmp/" in mock_run.call_args[0][0]
+        # Verify it includes the patch command
+        assert "patch -p1 < " in mock_run.call_args[0][0]
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,7 @@
+"""Execution tools for the Agent Workspace MCP."""
+
+import os
+import signal
 import asyncio
 from typing import Annotated
 from pydantic import Field
@@ -23,7 +27,7 @@ async def run_bash(
         ctx: Auto-injected FastMCP context.
 
     Returns:
-        Combined stdout and stderr of the command.
+        Combined stdout and stderr of the command, prefixed with the exit code.
     """
     if timeout is None:
         timeout = security.COMMAND_TIMEOUT
@@ -32,7 +36,8 @@ async def run_bash(
         await ctx.info(f"Running command: {command}")
 
     try:
-        # Use /bin/sh -c to execute the command string
+        # Use /bin/sh -c to execute the command string in a new process group
+        # start_new_session=True creates a new process group, allowing us to kill children
         process = await asyncio.create_subprocess_exec(
             "/bin/sh",
             "-c",
@@ -40,10 +45,11 @@ async def run_bash(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,  # Merge stderr into stdout
             cwd=str(security.WORKSPACE_ROOT),
+            start_new_session=True,
         )
 
         try:
-            # Wait for completion with timeout
+            # Wait for completion with timeout. communicate() reads until EOF.
             stdout, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
             output = stdout.decode("utf-8", errors="replace")
 
@@ -59,12 +65,17 @@ async def run_bash(
                     + "\n... output truncated at 50KB. Use 'head' or 'tail' to view specific portions."
                 )
 
-            return output
+            # Return exit code and output
+            result = f"[Exit code: {return_code}]"
+            if output:
+                result += f"\n{output}"
+            return result
 
         except asyncio.TimeoutError:
-            # Kill the process if it timed out
+            # Kill the entire process group if it timed out to reaps children (like uv workers)
             try:
-                process.kill()
+                os.killpg(process.pid, signal.SIGKILL)
+                # Still wait for the main process to be reaped
                 await process.wait()
             except ProcessLookupError:
                 pass
@@ -116,10 +127,11 @@ async def lint_workspace(
         )
 
         results = []
-        if "All checks passed" not in check_output and check_output.strip():
+        # Check for non-zero exit code in run_bash output
+        if "[Exit code: 0]" not in check_output:
             results.append("### Ruff Check:\n" + check_output)
 
-        if "would reformat" in format_output or "error" in format_output.lower():
+        if "[Exit code: 0]" not in format_output:
             results.append("### Ruff Format Check:\n" + format_output)
 
         if not results:

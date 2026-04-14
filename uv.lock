@@ -9,8 +9,6 @@ source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
     { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "ruff" },
 ]
 
 [package.dev-dependencies]
@@ -22,14 +20,14 @@ dev = [
     { name = "openai-agents" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "python-dotenv" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=3.2.3" },
     { name = "pydantic", specifier = ">=2.0" },
-    { name = "python-dotenv", specifier = ">=1.0" },
-    { name = "ruff", specifier = ">=0.9" },
 ]
 
 [package.metadata.requires-dev]
@@ -41,6 +39,8 @@ dev = [
     { name = "openai-agents", specifier = ">=0.13.6" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
+    { name = "python-dotenv", specifier = ">=1.0" },
+    { name = "ruff", specifier = ">=0.9" },
 ]
 
 [[package]]

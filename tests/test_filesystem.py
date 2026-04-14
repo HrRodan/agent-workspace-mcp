@@ -92,3 +92,28 @@ async def test_search_workspace_exclude(workspace, mock_ctx):
     
     result = await search_workspace("**/*.py", mock_ctx)
     assert "hidden.py" not in result
+
+@pytest.mark.asyncio
+async def test_search_workspace_exact_limit(workspace, mock_ctx, monkeypatch):
+    monkeypatch.setattr("agent_workspace_mcp.utils.security.MAX_SEARCH_RESULTS", 3)
+    (workspace / "1.py").write_text("1")
+    (workspace / "2.py").write_text("2")
+    (workspace / "3.py").write_text("3")
+    
+    result = await search_workspace("**/*.py", mock_ctx)
+    assert "Found 3 matches" in result
+    assert "1.py" in result
+    assert "2.py" in result
+    assert "3.py" in result
+    assert "truncated" not in result
+
+@pytest.mark.asyncio
+async def test_search_workspace_truncated(workspace, mock_ctx, monkeypatch):
+    monkeypatch.setattr("agent_workspace_mcp.utils.security.MAX_SEARCH_RESULTS", 2)
+    (workspace / "1.py").write_text("1")
+    (workspace / "2.py").write_text("2")
+    (workspace / "3.py").write_text("3")
+    
+    result = await search_workspace("**/*.py", mock_ctx)
+    assert "Found 2 matches" in result
+    assert "truncated" in result

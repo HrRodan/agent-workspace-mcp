@@ -8,7 +8,7 @@ A unified Model Context Protocol (MCP) server providing a highly secure, contain
 * **Communication Protocol:** JSON-RPC over Standard Input/Output (`stdio`) using jlowin's `fastmcp` (FastMCP 3.x, currently `>=3.2.3`) rather than the generic SDK to leverage decorator-based clean tooling without boilerplate.
 * **Concurrency:** All tool functions must be implemented asynchronously (`async def`) using `asyncio` to prevent I/O blocking.
 * **State Management:** The Docker container is ephemeral and destroyed upon client disconnection (`--rm` flag). However, it remains continuously active during the session. All workspace state (including virtual environments) persists on the host-mounted volume. To ensure host macOS/Windows environments don't conflict with Linux `.venv` binaries, `UV_PROJECT_ENVIRONMENT=/workspace/.venv_container` should be designated.
-* **Signal Handling & Graceful Shutdown:** The server must handle `SIGTERM` and `SIGINT` gracefully. On receiving a termination signal, it must cancel any running subprocesses spawned by `run_bash`, flush log buffers, and exit cleanly. `tini` serves as PID 1 and handles signal forwarding and zombie reaping.
+* **Signal Handling & Graceful Shutdown:** The server must handle `SIGTERM` and `SIGINT` gracefully. On receiving a termination signal, it must cancel any running subprocesses spawned by `run_bash`, flush log buffers, and exit cleanly. To ensure proper signal forwarding and zombie reaping, the container MUST be run with the `--init` flag (Docker's built-in init process).
 
 ## 3. Configuration & Environment Variables
 The server's behavior must be configurable via environment variables with sensible defaults:
@@ -26,7 +26,7 @@ The server's behavior must be configurable via environment variables with sensib
 The system enforces strict isolation and prevents host resource exhaustion:
 * **Host-to-Container UID/GID Mapping:** To ensure file permission parity on Linux, the container must run with the host user's exact permissions. **Crucial Note:** Claude Desktop does not evaluate bash variables like `$(id -u)` in the JSON `args` array. Users must explicitly hardcode their UID (e.g., `--user 1000:1000`) in `server.json` or use an intermediate wrapper script. macOS/Windows Docker Desktop handles permissions transparently.
 * **Non-Root Execution:** The Dockerfile must create and utilize a dedicated non-root user (`mcpuser`).
-* **Kernel Isolation:** Container execution must drop all capabilities (`--cap-drop=ALL`) and prevent privilege escalation (`--security-opt=no-new-privileges:true`). Note: `fork()` and `execve()` are fundamental system calls that do **not** require elevated Linux capabilities; `--cap-drop=ALL` will NOT prevent subprocess creation. This setup is fully compatible with `asyncio.create_subprocess_exec` and `tini`.
+* **Kernel Isolation:** Container execution must drop all capabilities (`--cap-drop=ALL`) and prevent privilege escalation (`--security-opt=no-new-privileges:true`). Note: `fork()` and `execve()` are fundamental system calls that do **not** require elevated Linux capabilities; `--cap-drop=ALL` will NOT prevent subprocess creation. This setup is fully compatible with `asyncio.create_subprocess_exec` and the `--init` flag.
 * **Filesystem Hardening:** The container root filesystem should be mounted read-only (`--read-only`) with `tmpfs` mounts for `/tmp` and `/home/mcpuser/.cache` (for `uv` cache writes). This prevents the agent from writing outside `/workspace` or modifying system files. The `/workspace/.mcp/` directory is used for server logs.
 * **Process Limits:** Use `--pids-limit=256` to prevent fork bomb attacks from LLM-generated code.
 * **Hardware Quotas:** Docker runtime flags must cap resources (e.g., `--memory="2g" --cpus="2.0"`) to prevent LLM-generated code from crashing the host.
@@ -220,8 +220,9 @@ RUN uv pip install --system /app
 # Switch to the non-root user before executing
 USER mcpuser
 
-# Execute the FastMCP server directly, wrapped by `tini` to properly reap zombie subprocesses
-ENTRYPOINT ["tini", "--", "python", "-m", "agent_workspace_mcp.server"]
+# Execute the FastMCP server directly.
+# Proper signal forwarding and zombie reaping are handled by Docker's --init flag at runtime.
+ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]
 ```
 
 **`server.json`**

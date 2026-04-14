@@ -1,3 +1,5 @@
+"""Security and path validation utilities for the Agent Workspace MCP."""
+
 import os
 from pathlib import Path
 
@@ -6,7 +8,7 @@ from pathlib import Path
 # but can be overridden by environment variables.
 WORKSPACE_ROOT: Path = Path(os.environ.get("WORKSPACE_ROOT", "/workspace")).resolve()
 
-COMMAND_TIMEOUT: int = int(os.environ.get("COMMAND_TIMEOUT", "30"))
+COMMAND_TIMEOUT: int = int(os.environ.get("COMMAND_TIMEOUT", "60"))
 MAX_SEARCH_RESULTS: int = int(os.environ.get("MAX_SEARCH_RESULTS", "50"))
 MAX_READ_SIZE_BYTES: int = int(os.environ.get("MAX_READ_SIZE_BYTES", str(1024 * 1024)))
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")

@@ -60,7 +60,7 @@ class MCPContainerClient:
             *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stderr=None,
         )
 
         # Initial handshake
@@ -78,10 +78,15 @@ class MCPContainerClient:
     async def stop(self):
         """Stop the container."""
         if self.process:
-            self.process.terminate()
-            await self.process.wait()
+            if self.process.stdin:
+                self.process.stdin.close()
+            try:
+                await asyncio.wait_for(self.process.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                self.process.kill()
+                await self.process.wait()
 
-    async def call(self, method: str, params: dict):
+    async def call(self, method: str, params: dict, timeout: int = 300):
         """Perform a JSON-RPC call."""
         request = {
             "jsonrpc": "2.0",
@@ -98,21 +103,27 @@ class MCPContainerClient:
         if method.startswith("notifications/"):
             return None
 
-        # Read lines until we get a response
+        # Read lines until we get a response, with a timeout to prevent hanging forever
+        try:
+            return await asyncio.wait_for(self._wait_for_response(request["id"]), timeout=timeout)
+        except asyncio.TimeoutError:
+            raise TimeoutError(f"Handshake or tool call '{method}' timed out after {timeout}s.")
+
+    async def _wait_for_response(self, request_id: int):
         while True:
             line = await self.process.stdout.readline()
             if not line:
                 return None
             try:
                 response = json.loads(line.decode())
-                if "id" in response and response["id"] == request["id"]:
+                if "id" in response and response["id"] == request_id:
                     return response
             except json.JSONDecodeError:
                 continue
 
-    async def run_tool(self, name: str, arguments: dict):
+    async def run_tool(self, name: str, arguments: dict, timeout: int = 300):
         """Call a tool on the MCP server."""
-        res = await self.call("tools/call", {"name": name, "arguments": arguments})
+        res = await self.call("tools/call", {"name": name, "arguments": arguments}, timeout=timeout)
         if res and "result" in res:
             content = res["result"].get("content", [])
             if content:
@@ -122,7 +133,34 @@ class MCPContainerClient:
 
 @pytest.mark.asyncio
 async def test_workflow_pep723_script(tmp_path):
-    """Scenario 1: Agent creates a PEP 723 script and runs it."""
+    """Scenario 1: Agent creates a PEP 723 script and runs it using an included package (standard library)."""
+    client = MCPContainerClient(tmp_path)
+    try:
+        await client.start()
+
+        # 1. Write the script using 'json' (standard library, no download needed)
+        script_content = """# /// script
+# dependencies = []
+# ///
+import json
+print(json.dumps({"status": "ok"}))
+"""
+        await client.run_tool(
+            "write_file", {"filepath": "hello.py", "content": script_content}
+        )
+
+        # 2. Run the script with uv run
+        output = await client.run_tool("run_bash", {"command": "uv run hello.py"})
+
+        assert '{"status": "ok"}' in output
+
+    finally:
+        await client.stop()
+
+
+@pytest.mark.asyncio
+async def test_workflow_download_requests(tmp_path):
+    """Scenario: Agent downloads a package (requests) from PyPI."""
     client = MCPContainerClient(tmp_path)
     try:
         await client.start()
@@ -132,16 +170,20 @@ async def test_workflow_pep723_script(tmp_path):
 # dependencies = ["requests"]
 # ///
 import requests
-print("hello from pep723")
+print("downloaded requests")
 """
         await client.run_tool(
-            "write_file", {"filepath": "hello.py", "content": script_content}
+            "write_file", {"filepath": "download.py", "content": script_content}
         )
 
-        # 2. Run the script with uv run
-        output = await client.run_tool("run_bash", {"command": "uv run hello.py"})
+        # 2. Run the script with uv run - give it 300s to download
+        output = await client.run_tool(
+            "run_bash", 
+            {"command": "uv run download.py", "timeout": 300},
+            timeout=310
+        )
 
-        assert "hello from pep723" in output
+        assert "downloaded requests" in output
 
     finally:
         await client.stop()
@@ -184,3 +226,5 @@ async def test_security_boundary(tmp_path):
 
     finally:
         await client.stop()
+
+

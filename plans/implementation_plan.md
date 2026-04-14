@@ -495,7 +495,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   - **System deps**: `curl`, `git`, `jq`, `nano`, `patch`, `tini` — minimal set for agent workflows.
   - **Install strategy**: `uv pip install --system /app` — installs the project and its dependencies system-wide. The `pyproject.toml` is copied first (before `src/`) to leverage Docker layer caching for dependency resolution.
   - **User**: `mcpuser` (UID 1000) is created and set before the `ENTRYPOINT`.
-  - **ENTRYPOINT**: `tini -- python -m agent_workspace_mcp.server` — `tini` handles signal forwarding and zombie reaping as PID 1.
+  - **ENTRYPOINT**: `python -m agent_workspace_mcp.server` — Standard entrypoint. Signal forwarding and zombie reaping are handled by the `--init` flag at runtime as required in the README.
 - **Verify**: `[x]` Local image build succeeds:
   ```bash
   docker build -t agent-workspace-mcp .
