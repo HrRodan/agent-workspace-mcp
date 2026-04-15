@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    "helpers:pinGitHubActionDigestsToSemver",
+    "docker:pinDigests"
+  ],
+  "labels": ["dependencies"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "uv": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "description": "Ignore pre-release versions (alpha, beta, rc)",
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "allowedVersions": "!/^.*?(a|alpha|b|beta|rc)/"
+    },
+    {
+      "description": "Auto-merge patch updates if CI passes",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Group Docker updates",
+      "matchManagers": ["dockerfile"],
+      "groupName": "docker",
+      "commitMessagePrefix": "chore(docker):"
+    },
+    {
+      "description": "Group Python dependency updates",
+      "matchManagers": ["uv"],
+      "groupName": "python-deps",
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "Group GitHub Action updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "commitMessagePrefix": "chore(actions):"
+    }
+  ]
+}
