@@ -14,8 +14,8 @@ A unified Model Context Protocol (MCP) server providing a **highly secure, conta
 - **🐚 Secure Bash Access**: Execute shell commands with mandatory timeouts and merged output streams.
 - **📂 Robust Filesystem**: Path-traversal protected operations for reading, writing, and searching the workspace.
 - **🛡️ Multi-Layer Security**: Non-root execution, dropped capabilities, resource limits, and a read-only root filesystem.
-- ⚡ **Precision Editing**: Multi-edit `search_and_replace` with dry-run support and syntax validation for Python, JSON, TOML, and YAML.
-- 🩹 **Unified Diffs**: Apply standard `.patch` files or receive rich diff output from editing tools.
+- ⚡ **Precision Editing**: Advanced `search_and_replace` with **fuzzy whitespace matching**, **indentation preservation**, dry-run support, and syntax validation for Python, JSON, TOML, and YAML.
+- 🩹 **Standard Unified Diffs**: Receive rich diff output with 3 lines of context or apply standard `.patch` files via `patch -p1`.
 - **📊 Real-time Observability**: Direct logging to MCP client UI and persistent rotating audit logs.
 
 ---
@@ -153,7 +153,7 @@ Add the following configuration to your `claude_desktop_config.json` or Cursor s
 | `search_workspace` | Find files by glob pattern with support for `exclude_patterns`. |
 | `run_bash` | Execute shell commands in `/workspace` with a 60s timeout. |
 | `apply_patch` | Apply standard Unified Diffs (`.patch` files) via `patch -p1`. |
-| `search_and_replace` | Multi-edit string replacement with diff output and syntax validation. |
+| `search_and_replace` | Multi-edit tool with **fuzzy whitespace matching**, **indentation preservation**, dry-run mode, and syntax validation. |
 
 ---
 
