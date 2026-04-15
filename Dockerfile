@@ -6,7 +6,7 @@
 # =============================================================================
 
 # --- Stage 1: uv binary ---
-FROM ghcr.io/astral-sh/uv:0.11.2 AS uv_bin
+FROM ghcr.io/astral-sh/uv:0.11.6 AS uv_bin
 
 # --- Stage 2: Runtime ---
 FROM python:3.14.4-slim-trixie
