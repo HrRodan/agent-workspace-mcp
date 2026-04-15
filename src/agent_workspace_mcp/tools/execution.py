@@ -35,6 +35,7 @@ async def run_bash(
     Environment:
     - Working directory: /workspace (all relative paths resolve here).
     - Shell: /bin/sh. Supports pipes, redirects, &&, ||, etc.
+    - Available commands: standard bash e.g. curl, git, jq, patch, tree, fd-find (fd), ripgrep (rg), procps (ps, kill, pkill), zip, unzip, tar, ...
     - Output: Returns "[Exit code: N]" followed by merged stdout+stderr.
       Output is truncated at 50 KB — use `head`, `tail`, or `grep` for large outputs.
     - Timeout: The process is killed after `timeout` seconds (default 60s).

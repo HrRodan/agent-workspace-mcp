@@ -1,65 +1,86 @@
-# Use a separate stage for uv binary
-FROM ghcr.io/astral-sh/uv:latest AS uv_bin
+# =============================================================================
+# Agent Workspace MCP — Production Dockerfile
+# Architecture: two-stage build (uv binary + Python slim runtime)
+# Transport:    stdio (JSON-RPC over stdin/stdout)
+# Runtime user: mcpuser (UID 1000 by default)
+# =============================================================================
 
-# Final stage
-FROM python:3.14-slim-trixie
+# --- Stage 1: uv binary ---
+FROM ghcr.io/astral-sh/uv:0.11.2 AS uv_bin
 
-# Copy uv binary from the distroless image
+# --- Stage 2: Runtime ---
+FROM python:3.14.4-slim-trixie
+
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+
 COPY --from=uv_bin /uv /uvx /bin/
 
-# Label for discoverability
-LABEL io.modelcontextprotocol.server.name="io.github.HrRodan/agent-workspace-mcp"
+# OCI & MCP metadata
+LABEL org.opencontainers.image.title="Agent Workspace MCP" \
+      org.opencontainers.image.description="Sandboxed agentic workspace MCP server for LLMs" \
+      org.opencontainers.image.url="https://github.com/HrRodan/agent-workspace-mcp" \
+      org.opencontainers.image.source="https://github.com/HrRodan/agent-workspace-mcp" \
+      org.opencontainers.image.licenses="MIT" \
+      io.modelcontextprotocol.server.name="io.github.HrRodan/agent-workspace-mcp"
 
-# Install minimal system utilities
-# Added procps for process management logic often needed by agents.
+# Install minimal system utilities required by the agentic workspace
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     jq \
-    nano \
     patch \
+    tree \
+    fd-find \
+    ripgrep \
     procps \
-    && rm -rf /var/lib/apt/lists/*
+    zip \
+    unzip \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -s /usr/bin/fdfind /usr/local/bin/fd
 
-# Create a non-root user and group with an explicit UID for Linux compatibility
-RUN groupadd -g 1000 mcpuser && useradd -u 1000 -g 1000 -m mcpuser
+# Create a non-root user with configurable UID/GID for host-mount compatibility
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g "${GID}" mcpuser && useradd -u "${UID}" -g "${GID}" -m mcpuser
 
-# Set up the server application directory
+# --- Application install ---
 WORKDIR /app
 
-# Enable byte compilation for faster startup
-# ENV UV_LINK_MODE=copy ensures compatibility across Docker layers
+# UV_COMPILE_BYTECODE=1 speeds up startup
+# UV_LINK_MODE=copy ensures compatibility across Docker layers
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1
 
-# Copy the dependency files first to leverage Docker layer caching
+# Copy dependency manifests first to maximize layer cache hits
+# uv.lock is explicitly kept out of .dockerignore
 COPY pyproject.toml uv.lock ./
 
-# Install MCP server dependencies into a dedicated .venv in /app
-# We use --frozen to ensure deterministic builds based on uv.lock
-# We use --no-dev to exclude development dependencies (pytest, etc.)
+# Install dependencies (without the project itself)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+    uv sync --frozen --no-install-project --no-dev \
+ && chown -R mcpuser:mcpuser /app/.venv
 
-# Copy the rest of the server application code
+# Copy application source
 COPY README.md ./
 COPY src/ ./src/
 
-# Install the server project itself into the .venv
+# Install the project server itself into the venv
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev \
+ && chown -R mcpuser:mcpuser /app/.venv
 
-# Setup dynamic execution workspace
+# --- Workspace setup ---
+# Pre-create the /workspace directory with correct user ownership
 RUN mkdir -p /workspace && chown mcpuser:mcpuser /workspace
 WORKDIR /workspace
 
-# Set environments to avoid polluting host machine's venvs via mounts
-# This ensures any 'uv run' executed by agents inside /workspace gets a localized environment
+# UV_PROJECT_ENVIRONMENT ensures agent processes use a local environment
 ENV UV_PROJECT_ENVIRONMENT=/workspace/.venv_container \
     PATH="/app/.venv/bin:$PATH"
 
-# Switch to the non-root user before executing
+STOPSIGNAL SIGTERM
+
 USER mcpuser
 
 # Execute the server using its dedicated virtual environment

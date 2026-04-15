@@ -57,11 +57,14 @@ flowchart TD
 
 ## 📦 Quick Start
 
-### 1. Pull the Docker Image
+### 1. Pull or Build the Docker Image
 ```bash
+# Pull from GHCR
 docker pull ghcr.io/hrrodan/agent-workspace-mcp:latest
+
+# OR: Build locally with your host's UID/GID for optimal permissions
+docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t agent-workspace-mcp .
 ```
-*(Alternatively, build locally: `docker build -t agent-workspace-mcp .`)*
 
 ### 2. Programmatic Usage (OpenAI Agents SDK)
 Here is a quick boilerplate showing how to use the containerized workspace programmatically using the standard `openai-agents` SDK:
@@ -176,10 +179,11 @@ The server supports the following environment variables (passed via Docker `--en
 This server is designed with a **defense-in-depth** strategy, providing multiple layers of isolation and protection:
 
 ### 🐋 Container-Level Security
-- **Non-Root Execution**: The container runs under a dedicated `mcpuser` (UID 1000).
+- **Configurable Non-Root Identity**: The container runs under a dedicated `mcpuser`. By default, it uses UID 1000, but this is [customizable at build time](#1-pull-or-build-the-docker-image) to match your host user, preventing permission conflicts on volume mounts.
 - **Kernel Hardening**: All Linux capabilities are dropped (`--cap-drop=ALL`).
 - **Privilege Lockdown**: Prevents processes from gaining new privileges (`no-new-privileges:true`).
 - **Immutable Core**: The root filesystem is mounted **read-only** (`--read-only`).
+- **Standardized Metadata**: Adheres to the [OCI Image Specification](https://github.com/opencontainers/image-spec) for transparent auditing and discovery.
 - **Resource Quotas**: Hard limits on CPU, Memory, and PIDs prevent fork-bombs and host exhaustion.
 - **Ephemeral Sessions**: Containers are strictly ephemeral (`--rm`), ensuring no state survives between connections.
 
