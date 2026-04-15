@@ -158,7 +158,7 @@ async def search_and_replace(
     ] = False,
     ctx: Context = None,
 ) -> str:
-    """Replace substrings in a file. Fallback to fuzzy whitespace matching if exact fails.
+    """Replace substrings in a file. Fallback to fuzzy whitespace matching if exact fails. Use this as primary tool to edit files.
 
     Returns unified diff. Validates .py, .json, .toml, .yaml syntax after edits.
     """
