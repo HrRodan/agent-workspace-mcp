@@ -19,7 +19,7 @@
     },
     {
       "matchManagers": ["dockerfile"],
-      "groupName": "docker",
+      "groupName": "docker"
     },
     {
       "matchManagers": ["github-actions"],
@@ -28,8 +28,7 @@
     },
     {
       "matchManagers": ["pep621"],
-      "groupName": "python-deps",
-      "automerge": true
+      "groupName": "python-deps"
     }
   ]
 }
