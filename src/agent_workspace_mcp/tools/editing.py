@@ -15,28 +15,18 @@ from agent_workspace_mcp.tools.execution import run_bash
 async def apply_patch(
     patch_content: Annotated[
         str,
-        Field(
-            description=(
-                "A unified diff in standard patch format. "
-                "File paths in the diff must be relative to /workspace "
-                "(e.g., '--- a/src/main.py')."
-            )
-        ),
+        Field(description="Unified diff in standard patch format. Paths relative to /workspace."),
     ],
-    ctx: Context,
+    ctx: Context = None,
 ) -> str:
-    """Apply a unified diff to one or more workspace files.
+    """Apply a unified diff (`patch -p1`) to workspace files.
 
-    Expects standard unified diff format with `--- a/path` / `+++ b/path` headers.
-    Paths inside the diff must be relative to /workspace. Applied with `patch -p1`.
-
-    For single-location edits, prefer `search_and_replace` (simpler, with syntax
-    validation). Use `apply_patch` when changing multiple locations across one or
-    more files in a single operation.
+    For single edits, prefer search_and_replace (includes syntax validation).
     """
     temp_patch = None
     try:
-        await ctx.info("Applying patch...")
+        if ctx:
+            await ctx.info("Applying patch...")
 
         # Create a temporary patch file in the system temp directory
         with tempfile.NamedTemporaryFile(
@@ -53,7 +43,8 @@ async def apply_patch(
         return result
 
     except Exception as e:
-        await ctx.error(f"Failed to apply patch: {str(e)}")
+        if ctx:
+            await ctx.error(f"Failed to apply patch: {str(e)}")
         return f"ERROR: {str(e)}"
     finally:
         if temp_patch and os.path.exists(temp_patch):
@@ -67,85 +58,97 @@ async def search_and_replace(
     filepath: Annotated[
         str, Field(description="Path to the file, relative to /workspace.")
     ],
-    exact_search_block: Annotated[
-        str,
+    edits: Annotated[
+        list[dict[str, str]],
         Field(
-            description=(
-                "The exact substring to find, including all whitespace and "
-                "indentation. Must appear exactly once in the file. If not "
-                "unique, include more surrounding lines for context."
-            )
+            description='List of {"old": "exact_text", "new": "replacement"} objects.'
         ),
     ],
-    replace_block: Annotated[
-        str, Field(description="The replacement string that will take its place.")
-    ],
-    ctx: Context,
+    dry_run: Annotated[
+        bool, Field(description="Preview changes as a diff without applying.")
+    ] = False,
+    ctx: Context = None,
 ) -> str:
-    """Replace an exact substring in a file with new content.
+    """Replace exact substrings in a file. Matches must be unique.
 
-    Performs a literal, whitespace-sensitive match — the search block must
-    appear exactly once in the file and match character-for-character
-    (including indentation and newlines). Use `read_file` first to copy the
-    exact text you want to replace.
-
-    After replacement, the tool validates syntax for .py, .json, and .toml
-    files and rejects the edit if it would introduce a parse error.
+    Returns unified diff. Validates .py, .json, .toml, .yaml syntax after edits.
     """
     try:
         path = security.safe_path(filepath)
-        await ctx.info(f"Search and replace in: {filepath}")
+        if ctx:
+            await ctx.info(f"Search and replace in: {filepath} ({len(edits)} edits)")
 
         if not path.exists():
             return f"ERROR: File '{filepath}' not found."
 
-        if path.is_dir():
-            return f"ERROR: '{filepath}' is a directory."
-
         # 1. Read content
         content = path.read_text(encoding="utf-8", errors="replace")
+        new_content = content
 
-        # 2. Count occurrences
-        count = content.count(exact_search_block)
-        if count == 0:
-            return (
-                f"ERROR: Search block not found in '{filepath}'. "
-                f"Use read_file to verify exact content including whitespace."
+        # 2. Apply edits sequentially
+        for i, edit in enumerate(edits):
+            old = edit.get("old")
+            new = edit.get("new")
+            if old is None or new is None:
+                return f"ERROR: Edit {i} must contain 'old' and 'new' keys."
+
+            count = new_content.count(old)
+            if count == 0:
+                return f"ERROR: Edit {i} ('{old[:20]}...') not found in '{filepath}'."
+            if count > 1:
+                return f"ERROR: Edit {i} ('{old[:20]}...') found {count} times. Make it unique."
+
+            new_content = new_content.replace(old, new, 1)
+
+        # 3. Validate syntax (only if content changed)
+        if new_content != content:
+            ext = path.suffix.lower()
+            if ext == ".py":
+                try:
+                    ast.parse(new_content)
+                except SyntaxError as e:
+                    return f"ERROR: Python syntax error at line {e.lineno}: {e.msg}."
+            elif ext == ".json":
+                try:
+                    json.loads(new_content)
+                except json.JSONDecodeError as e:
+                    return f"ERROR: JSON parse error at line {e.lineno}: {e.msg}."
+            elif ext == ".toml":
+                try:
+                    tomllib.loads(new_content)
+                except Exception as e:
+                    return f"ERROR: TOML parse error: {str(e)}."
+            elif ext in (".yaml", ".yml"):
+                try:
+                    import yaml
+                    yaml.safe_load(new_content)
+                except Exception as e:
+                    return f"ERROR: YAML parse error: {str(e)}."
+
+        # 4. Generate diff
+        import difflib
+        diff = "".join(
+            difflib.unified_diff(
+                content.splitlines(keepends=True),
+                new_content.splitlines(keepends=True),
+                fromfile=f"a/{filepath}",
+                tofile=f"b/{filepath}",
             )
-        if count > 1:
-            return (
-                f"ERROR: Search block found {count} times in '{filepath}'. "
-                f"Provide more context in your search block to make it unique."
-            )
+        )
 
-        # 3. Replace in-memory
-        new_content = content.replace(exact_search_block, replace_block, 1)
+        if not diff:
+            return "No changes made (content matched existing)."
 
-        # 4. Validate syntax
-        ext = path.suffix.lower()
-        if ext == ".py":
-            try:
-                ast.parse(new_content)
-            except SyntaxError as e:
-                return f"ERROR: Python syntax error at line {e.lineno}: {e.msg}. Fix and retry."
-        elif ext == ".json":
-            try:
-                json.loads(new_content)
-            except json.JSONDecodeError as e:
-                return f"ERROR: JSON parse error at line {e.lineno}, col {e.colno}: {e.msg}. Fix and retry."
-        elif ext == ".toml":
-            try:
-                tomllib.loads(new_content)
-            except tomllib.TOMLDecodeError as e:
-                return f"ERROR: TOML parse error: {str(e)}. Fix and retry."
-
-        # 5. Write atomically
-        temp_path = path.with_suffix(f"{path.suffix}.tmp")
-        temp_path.write_text(new_content, encoding="utf-8")
-        os.replace(temp_path, path)
-
-        return f"Successfully replaced content in '{filepath}'. {len(replace_block)} chars written."
+        # 5. Write if not dry_run
+        if not dry_run:
+            temp_path = path.with_suffix(f"{path.suffix}.tmp")
+            temp_path.write_text(new_content, encoding="utf-8")
+            os.replace(temp_path, path)
+            return f"Successfully applied {len(edits)} edits to '{filepath}':\n\n{diff}"
+        else:
+            return f"DRY RUN - proposed changes for '{filepath}':\n\n{diff}"
 
     except Exception as e:
-        await ctx.error(f"Search and replace failed: {str(e)}")
+        if ctx:
+            await ctx.error(f"Search and replace failed: {str(e)}")
         return f"ERROR: {str(e)}"

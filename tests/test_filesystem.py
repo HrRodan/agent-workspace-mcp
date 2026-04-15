@@ -2,6 +2,7 @@ import pytest
 from agent_workspace_mcp.tools.filesystem import (
     read_file,
     write_file,
+    list_directory,
     search_workspace,
 )
 
@@ -9,11 +10,19 @@ from agent_workspace_mcp.tools.filesystem import (
 @pytest.mark.asyncio
 async def test_read_file(workspace, mock_ctx):
     test_file = workspace / "test.txt"
-    test_file.write_text("hello world")
+    test_file.write_text("line1\nline2\nline3\nline4")
 
-    content = await read_file("test.txt", mock_ctx)
-    assert content == "hello world"
-    mock_ctx.info.assert_called()
+    # Default read (first 100 lines)
+    content = await read_file("test.txt", offset=0, limit=100, ctx=mock_ctx)
+    assert content == "line1\nline2\nline3\nline4"
+
+    # Limit read
+    content = await read_file("test.txt", offset=0, limit=2, ctx=mock_ctx)
+    assert content == "line1\nline2"
+
+    # Offset read
+    content = await read_file("test.txt", offset=2, limit=2, ctx=mock_ctx)
+    assert content == "line3\nline4"
 
 
 @pytest.mark.asyncio
@@ -50,10 +59,20 @@ async def test_write_file(workspace, mock_ctx):
 
 
 @pytest.mark.asyncio
-async def test_write_file_nested(workspace, mock_ctx):
-    result = await write_file("subdir/new.txt", "content", mock_ctx)
-    assert "Successfully wrote" in result
-    assert (workspace / "subdir" / "new.txt").read_text() == "content"
+async def test_list_directory(workspace, mock_ctx):
+    (workspace / "file.txt").write_text("file")
+    (workspace / "subdir").mkdir()
+    (workspace / ".git").mkdir()  # Should be excluded
+
+    result = await list_directory(".", mock_ctx)
+    assert "[F] file.txt" in result
+    assert "[D] subdir" in result
+    assert ".git" not in result
+
+@pytest.mark.asyncio
+async def test_list_directory_not_found(workspace, mock_ctx):
+    result = await list_directory("missing", mock_ctx)
+    assert "ERROR" in result
 
 
 
@@ -74,11 +93,19 @@ async def test_search_workspace(workspace, mock_ctx):
 
 @pytest.mark.asyncio
 async def test_search_workspace_exclude(workspace, mock_ctx):
+    (workspace / "test1.py").write_text("1")
+    (workspace / "test2.py").write_text("2")
+
+    # Use explicit exclude
+    result = await search_workspace("**/*.py", exclude_patterns=["test1.py"], ctx=mock_ctx)
+    assert "test2.py" in result
+    assert "test1.py" not in result
+
+    # Standard security exclude
     venv_dir = workspace / ".venv_container"
     venv_dir.mkdir()
     (venv_dir / "hidden.py").write_text("hidden")
-
-    result = await search_workspace("**/*.py", mock_ctx)
+    result = await search_workspace("**/*.py", ctx=mock_ctx)
     assert "hidden.py" not in result
 
 

@@ -21,17 +21,12 @@ EXPECTED_FIB_1123 = 220614980192688136944979398836930727650375039350482213170310
 
 
 @pytest.mark.asyncio
-async def test_native_mcp_fibonacci():
+async def test_native_mcp_fibonacci(agent_workspace: Path):
     # 1. Setup workspace
-    root_dir = Path(__file__).parent.parent.parent
-    tmp_dir = root_dir / "tmp"
-    tmp_dir.mkdir(exist_ok=True)
-    abs_tmp_dir = str(tmp_dir.resolve())
+    abs_tmp_dir = str(agent_workspace)
 
     # Ensure it's clean for the test
-    fib_file = tmp_dir / "fib.py"
-    if fib_file.exists():
-        fib_file.unlink()
+    fib_file = agent_workspace / "fib.py"
 
     # 2. Configure Native MCP Server
     # We use the docker image we built previously

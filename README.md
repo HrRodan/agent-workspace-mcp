@@ -14,8 +14,8 @@ A unified Model Context Protocol (MCP) server providing a **highly secure, conta
 - **🐚 Secure Bash Access**: Execute shell commands with mandatory timeouts and merged output streams.
 - **📂 Robust Filesystem**: Path-traversal protected operations for reading, writing, and searching the workspace.
 - **🛡️ Multi-Layer Security**: Non-root execution, dropped capabilities, resource limits, and a read-only root filesystem.
-- **⚡ Fast Editing**: Atomic `search_and_replace` with syntax validation for Python, JSON, and TOML.
-- **🩹 Unified Diffs**: Apply standard `.patch` files securely using the native `patch` utility.
+- ⚡ **Precision Editing**: Multi-edit `search_and_replace` with dry-run support and syntax validation for Python, JSON, TOML, and YAML.
+- 🩹 **Unified Diffs**: Apply standard `.patch` files or receive rich diff output from editing tools.
 - **📊 Real-time Observability**: Direct logging to MCP client UI and persistent rotating audit logs.
 
 ---
@@ -147,15 +147,13 @@ Add the following configuration to your `claude_desktop_config.json` or Cursor s
 
 | Tool | Description |
 |---|---|
-| `read_file` | Reads text files from the workspace (max 1MB). |
-| `write_file` | Writes or overwrites files (automatically creates parent directories). |
-| `list_directory` | Lists directory contents with size and type info. |
-| `get_file_info` | Returns detailed metadata (ISO timestamps, octal permissions). |
-| `search_workspace` | Searches for files using glob patterns (e.g., `**/*.py`). |
-| `run_bash` | Executes shell commands in `/workspace` with a 30s timeout. |
-| `lint_workspace` | Proactively runs `ruff check` and `ruff format` on code. |
-| `apply_patch` | Securely applies standard Unified Diffs (`.patch` files). |
-| `search_and_replace` | Atomic string replacement with AST validation for Python, JSON, and TOML. |
+| `read_file` | Read text files with optional `offset` and `limit` (default: 100 lines). |
+| `write_file` | Create or overwrite files (atomic write). |
+| `list_directory` | List contents with `[F]`ile and `[D]`irectory prefixes. |
+| `search_workspace` | Find files by glob pattern with support for `exclude_patterns`. |
+| `run_bash` | Execute shell commands in `/workspace` with a 60s timeout. |
+| `apply_patch` | Apply standard Unified Diffs (`.patch` files) via `patch -p1`. |
+| `search_and_replace` | Multi-edit string replacement with diff output and syntax validation. |
 
 ---
 
@@ -166,7 +164,7 @@ The server supports the following environment variables (passed via Docker `--en
 | Variable | Default | Description |
 |---|---|---|
 | `WORKSPACE_ROOT` | `/workspace` | Root directory for all sandboxed operations. |
-| `COMMAND_TIMEOUT` | `30` | Default seconds before `run_bash` kills a process. |
+| `COMMAND_TIMEOUT` | `60` | Default seconds before `run_bash` kills a process. |
 | `MAX_SEARCH_RESULTS` | `50` | Maximum results returned by `search_workspace`. |
 | `MAX_READ_SIZE_BYTES` | `1048576` | Maximum file size for `read_file` (1MB). |
 | `LOG_LEVEL` | `INFO` | Python logging level (DEBUG, INFO, etc.). |

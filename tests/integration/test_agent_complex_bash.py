@@ -19,17 +19,12 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.asyncio
-async def test_discovery_mcp_methods():
+async def test_discovery_mcp_methods(agent_workspace: Path):
     # 1. Setup workspace
-    root_dir = Path(__file__).parent.parent.parent
-    tmp_dir = root_dir / "tmp"
-    tmp_dir.mkdir(exist_ok=True)
-    abs_tmp_dir = str(tmp_dir.resolve())
+    abs_tmp_dir = str(agent_workspace)
 
     # Ensure it's clean
-    audit_file = tmp_dir / "mcp_audit.txt"
-    if audit_file.exists():
-        audit_file.unlink()
+    audit_file = agent_workspace / "mcp_audit.txt"
 
     # 2. Configure Native MCP Server
     server = MCPServerStdio(

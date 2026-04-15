@@ -17,19 +17,13 @@ pytestmark = pytest.mark.skipif(
 )
 
 @pytest.mark.asyncio
-async def test_readme_boilerplate():
+async def test_readme_boilerplate(agent_workspace: Path):
     """
     Validates the 'Quick Start' programmatic example from README.md.
-    Uses the official ghcr.io image and OpenAI Agents SDK.
+    Uses the local image and OpenAI Agents SDK.
     """
-    # 1. Setup workspace (dynamic for test environment)
-    # File is in tests/integration/test_readme_boilerplate.py
-    # .parent is tests/integration/
-    # .parent.parent.parent is project root/
-    root_dir = Path(__file__).parent.parent.parent
-    tmp_dir = root_dir / "tmp"
-    tmp_dir.mkdir(exist_ok=True)
-    abs_tmp_dir = str(tmp_dir.resolve())
+    # 1. Setup workspace
+    abs_tmp_dir = str(agent_workspace)
 
     # Environment-specific values for the current system
     uid = os.getuid()
@@ -53,7 +47,7 @@ async def test_readme_boilerplate():
                 "--env", "UV_PROJECT_ENVIRONMENT=/workspace/.venv_container",
                 "--user", f"{uid}:{gid}",
                 "-v", f"{abs_tmp_dir}:/workspace",
-                "ghcr.io/hrrodan/agent-workspace-mcp:latest",
+                "agent-workspace-mcp",
             ],
         },
         client_session_timeout_seconds=60.0,
@@ -79,7 +73,7 @@ async def test_readme_boilerplate():
         print(f"\nAgent's Final Output:\n{output_str}")
         
         # Check if the file was actually created on the host
-        fib_file = tmp_dir / "readme_fib.py"
+        fib_file = agent_workspace / "readme_fib.py"
         assert fib_file.exists(), "readme_fib.py was not created in the workspace"
         
         # Verify output contains numbers (Fibonacci sequence: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34)

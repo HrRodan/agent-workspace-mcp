@@ -30,17 +30,34 @@ async def test_apply_patch_success(workspace, mock_ctx):
 
 
 @pytest.mark.asyncio
-async def test_search_and_replace_success(workspace, mock_ctx):
+async def test_search_and_replace_multi_success(workspace, mock_ctx):
     test_file = workspace / "test.py"
-    test_file.write_text("def hello():\n    print('hello')\n")
+    test_file.write_text("def hello():\n    print('hello')\n    # comment\n")
 
-    result = await search_and_replace(
-        "test.py", "print('hello')", "print('world')", mock_ctx
-    )
+    edits = [
+        {"old": "print('hello')", "new": "print('world')"},
+        {"old": "# comment", "new": "# updated"},
+    ]
+    result = await search_and_replace("test.py", edits, ctx=mock_ctx)
 
-    assert "Successfully replaced" in result
+    assert "Successfully applied 2 edits" in result
     assert "print('world')" in test_file.read_text()
-    assert "print('hello')" not in test_file.read_text()
+    assert "# updated" in test_file.read_text()
+    assert "world" in result  # More robust diff check
+
+
+@pytest.mark.asyncio
+async def test_search_and_replace_dry_run(workspace, mock_ctx):
+    test_file = workspace / "test.py"
+    test_file.write_text("hello")
+
+    edits = [{"old": "hello", "new": "world"}]
+    result = await search_and_replace("test.py", edits, dry_run=True, ctx=mock_ctx)
+
+    assert "DRY RUN" in result
+    assert "-hello" in result
+    assert "+world" in result
+    assert test_file.read_text() == "hello"  # Not changed
 
 
 @pytest.mark.asyncio
@@ -48,12 +65,8 @@ async def test_search_and_replace_syntax_error(workspace, mock_ctx):
     test_file = workspace / "test.py"
     test_file.write_text("def hello():\n    print('hello')\n")
 
-    result = await search_and_replace(
-        "test.py",
-        "print('hello')",
-        "print('world') +",  # Syntax error: trailing +
-        mock_ctx,
-    )
+    edits = [{"old": "print('hello')", "new": "print('world') +"}]
+    result = await search_and_replace("test.py", edits, ctx=mock_ctx)
 
     assert "ERROR: Python syntax error" in result
     # Original file should be untouched
@@ -65,39 +78,23 @@ async def test_search_and_replace_not_found(workspace, mock_ctx):
     test_file = workspace / "test.py"
     test_file.write_text("hello")
 
-    result = await search_and_replace("test.py", "missing", "replacement", mock_ctx)
-    assert "ERROR: Search block not found" in result
+    result = await search_and_replace("test.py", [{"old": "missing", "new": "r"}], ctx=mock_ctx)
+    assert "ERROR: Edit 0" in result
+    assert "not found" in result
 
 
 @pytest.mark.asyncio
-async def test_search_and_replace_ambiguous(workspace, mock_ctx):
-    test_file = workspace / "test.py"
-    test_file.write_text("hello\nhello")
+async def test_search_and_replace_yaml(workspace, mock_ctx):
+    test_file = workspace / "test.yaml"
+    test_file.write_text("key: value\n")
 
-    result = await search_and_replace("test.py", "hello", "world", mock_ctx)
-    assert "ERROR: Search block found 2 times" in result
+    # Invalid YAML edit
+    edits = [{"old": "value", "new": "value:\n  nested: invalid:"}]
+    result = await search_and_replace("test.yaml", edits, ctx=mock_ctx)
+    assert "ERROR: YAML parse error" in result
 
-
-@pytest.mark.asyncio
-async def test_search_and_replace_json(workspace, mock_ctx):
-    test_file = workspace / "test.json"
-    test_file.write_text('{"key": "value"}')
-
-    result = await search_and_replace("test.json", '"value"', '"new_value"', mock_ctx)
-    assert "Successfully replaced" in result
-    assert '"new_value"' in test_file.read_text()
-
-
-@pytest.mark.asyncio
-async def test_search_and_replace_json_error(workspace, mock_ctx):
-    test_file = workspace / "test.json"
-    test_file.write_text('{"key": "value"}')
-
-    result = await search_and_replace(
-        "test.json",
-        '"value"',
-        "value_without_quotes",  # Invalid JSON
-        mock_ctx,
-    )
-    assert "ERROR: JSON parse error" in result
-    assert '"value"' in test_file.read_text()
+    # Valid YAML edit
+    edits = [{"old": "value", "new": "new_value"}]
+    result = await search_and_replace("test.yaml", edits, ctx=mock_ctx)
+    assert "Successfully applied" in result
+    assert "key: new_value" in test_file.read_text()

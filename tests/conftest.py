@@ -24,3 +24,29 @@ def mock_ctx() -> MagicMock:
     ctx.debug = AsyncMock()
     ctx.report_progress = AsyncMock()
     return ctx
+
+
+@pytest.fixture
+def agent_workspace(request) -> Path:
+    """Provide a unique temporary workspace under /tmp for live agent tests.
+
+    Returns the absolute path to the workspace. Cleans up after the test.
+    """
+    import uuid
+    import shutil
+
+    # Create a unique name based on the test function and a UUID
+    test_name = request.node.name
+    unique_id = uuid.uuid4().hex[:8]
+    workspace_path = Path(f"/tmp/mcp-test-{test_name}-{unique_id}").resolve()
+
+    workspace_path.mkdir(parents=True, exist_ok=True)
+
+    yield workspace_path
+
+    # Cleanup after test
+    if workspace_path.exists():
+        try:
+            shutil.rmtree(workspace_path)
+        except Exception:
+            pass

@@ -19,23 +19,14 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.asyncio
-async def test_agent_qa_cycle():
+async def test_agent_qa_cycle(agent_workspace: Path):
     """
-    Test a full development QA cycle:
-    1. Create a script with intentional linting issues.
-    2. Audit with lint_workspace.
-    3. Fix with editing tools.
-    4. Verify with lint_workspace and get_file_info.
+    Test a full development QA cycle.
     """
     # 1. Setup workspace
-    root_dir = Path(__file__).parent.parent.parent
-    tmp_dir = root_dir / "tmp"
-    tmp_dir.mkdir(exist_ok=True)
-    abs_tmp_dir = str(tmp_dir.resolve())
+    abs_tmp_dir = str(agent_workspace)
 
-    qa_file = tmp_dir / "qa_target.py"
-    if qa_file.exists():
-        qa_file.unlink()
+    qa_file = agent_workspace / "qa_target.py"
 
     # 2. Configure Native MCP Server
     server = MCPServerStdio(
@@ -73,8 +64,8 @@ async def test_agent_qa_cycle():
         name="QAAgent",
         instructions=(
             "You are a Quality Assurance engineer. You ensure that code scripts in the workspace "
-            "comply with linting standards. You find issues using lint_workspace, "
-            "fix them using editing tools, and verify the final state using metadata and linting tools."
+            "comply with linting standards. You find issues using bash tools like ruff, "
+            "fix them using editing tools, and verify the final state."
         ),
         model=LitellmModel(model=model_name),
         mcp_servers=[server],
@@ -85,10 +76,10 @@ async def test_agent_qa_cycle():
         "1. Create a new Python file `/workspace/qa_target.py`. It MUST have intentional "
         "linting issues: include an unused import (e.g., `import sys`) and some "
         "trailing whitespace or multiple blank lines.\n"
-        "2. Run the `lint_workspace` tool to identify these issues.\n"
+        "2. Run `ruff check .` via run_bash to identify these issues.\n"
         "3. Fix the detected issues using your editing tools.\n"
-        "4. Run `lint_workspace` again to verify the file is now clean.\n"
-        "5. Use `get_file_info` to report the final file size and modification time."
+        "4. Run `ruff check .` again to verify the file is now clean.\n"
+        "5. Use `ls -l` to report the final file size."
     )
 
     with trace("MCP-QA-Cycle"):

@@ -11,17 +11,23 @@ async def read_file(
     filepath: Annotated[
         str, Field(description="Path to the file, relative to /workspace.")
     ],
-    ctx: Context,
+    offset: Annotated[
+        int, Field(description="Line offset to start reading from (0-based).")
+    ] = 0,
+    limit: Annotated[
+        int, Field(description="Max lines to return. Default: 100.")
+    ] = 100,
+    ctx: Context = None,
 ) -> str:
-    """Read a text file and return its contents as a plain string.
+    """Read a text file.
 
-    Returns the raw file content without line numbers. Text files only —
-    binary files are rejected. Maximum file size: 1 MB. For larger files,
-    use `run_bash` with `head`, `tail`, or `grep` to read specific portions.
+    Text only, max 1MB. Returns first 100 lines by default.
+    For larger files or specific segments, use offset/limit or bash (grep/head/tail).
     """
     try:
         path = security.safe_path(filepath)
-        await ctx.info(f"Reading file: {filepath}")
+        if ctx:
+            await ctx.info(f"Reading file: {filepath}")
 
         if not path.exists():
             return f"ERROR: File '{filepath}' not found. Use list_directory() to discover available files."
@@ -41,10 +47,20 @@ async def read_file(
 
         # Use errors="replace" to avoid crashing on invalid UTF-8 sequences in text files
         content = path.read_text(encoding="utf-8", errors="replace")
-        return content
+
+        lines = content.splitlines()
+        if limit > 0 or offset > 0:
+            total_lines = len(lines)
+            end = offset + limit if limit > 0 else total_lines
+            lines = lines[offset:end]
+            if ctx:
+                await ctx.info(f"Read {len(lines)} lines (offset {offset}, total {total_lines})")
+
+        return "\n".join(lines)
 
     except Exception as e:
-        await ctx.error(f"Failed to read {filepath}: {str(e)}")
+        if ctx:
+            await ctx.error(f"Failed to read {filepath}: {str(e)}")
         return f"ERROR: {str(e)}"
 
 
@@ -56,24 +72,21 @@ async def write_file(
         str,
         Field(description="The complete file content to write."),
     ],
-    ctx: Context,
+    ctx: Context = None,
 ) -> str:
-    """Create or overwrite a file with the given content.
+    """Create or overwrite a file.
 
-    Creates the file and any missing parent directories if they don't exist.
-    If the file already exists, it is fully replaced. The write is atomic
-    (temp file + rename) so readers never see a partial write.
-
-    For targeted edits to an existing file, prefer `search_and_replace`.
+    Creates parent directories if needed. For partial edits, prefer search_and_replace.
     """
     try:
         path = security.safe_path(filepath)
-        await ctx.info(f"Writing to file: {filepath}")
+        if ctx:
+            await ctx.info(f"Writing to file: {filepath}")
 
         # Ensure parent directories exist
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Atomic write: write to temp file then rename
+        # Atomic write
         temp_path = path.with_suffix(f"{path.suffix}.tmp")
         temp_path.write_text(content, encoding="utf-8")
         os.replace(temp_path, path)
@@ -81,7 +94,47 @@ async def write_file(
         return f"Successfully wrote {len(content.encode('utf-8'))} bytes to {filepath}"
 
     except Exception as e:
-        await ctx.error(f"Failed to write to {filepath}: {str(e)}")
+        if ctx:
+            await ctx.error(f"Failed to write to {filepath}: {str(e)}")
+        return f"ERROR: {str(e)}"
+
+
+async def list_directory(
+    path: Annotated[
+        str,
+        Field(description="Directory path, relative to /workspace. Default: '.'"),
+    ] = ".",
+    ctx: Context = None,
+) -> str:
+    """List files and directories. Returns [F] or [D] prefix.
+
+    Excludes .git, .venv, etc. by default.
+    """
+    try:
+        abs_path = security.safe_path(path)
+        if ctx:
+            await ctx.info(f"Listing directory: {path}")
+
+        if not abs_path.exists():
+            return f"ERROR: Path '{path}' not found."
+        if not abs_path.is_dir():
+            return f"ERROR: '{path}' is not a directory."
+
+        entries = []
+        for item in abs_path.iterdir():
+            if item.name in security.SEARCH_EXCLUDE_DIRS:
+                continue
+            prefix = "[D]" if item.is_dir() else "[F]"
+            entries.append(f"{prefix} {item.name}")
+
+        if not entries:
+            return "Directory is empty."
+
+        return "\n".join(sorted(entries))
+
+    except Exception as e:
+        if ctx:
+            await ctx.error(f"List directory failed: {str(e)}")
         return f"ERROR: {str(e)}"
 
 
@@ -92,24 +145,21 @@ async def write_file(
 async def search_workspace(
     pattern: Annotated[
         str,
-        Field(
-            description=(
-                "Glob pattern to match file paths. "
-                "Examples: '**/*.py' (all Python files), 'src/**/*.json', '*.md'."
-            )
-        ),
+        Field(description="Glob pattern for paths (e.g. 'src/**/*.py')."),
     ],
-    ctx: Context,
+    exclude_patterns: Annotated[
+        list[str],
+        Field(description="Additional glob patterns to exclude."),
+    ] = [],
+    ctx: Context = None,
 ) -> str:
-    """Find files by name/path pattern (glob). Does NOT search file contents.
+    """Find files by glob pattern (name/path only).
 
-    Returns up to 50 matching file paths relative to /workspace.
-    Common directories (.git, __pycache__, .venv) are excluded automatically.
-
-    To search inside files by content, use `run_bash` with `grep -r "pattern" .`.
+    Returns up to 50 paths. For content search use `run_bash('grep -rn ...')`.
     """
     try:
-        await ctx.info(f"Searching for pattern: {pattern}")
+        if ctx:
+            await ctx.info(f"Searching for pattern: {pattern}")
 
         matches = []
         truncated = False
@@ -117,12 +167,20 @@ async def search_workspace(
         # We search relative to security.WORKSPACE_ROOT
         # We need to manually count to handle truncation correctly
         count = 0
+        from fnmatch import fnmatch
+
         for path in security.WORKSPACE_ROOT.glob(pattern):
-            # Check if any parent directory is in security.SEARCH_EXCLUDE_DIRS
+            rel_path = str(path.relative_to(security.WORKSPACE_ROOT))
+
+            # Security defaults
             if any(
                 part in security.SEARCH_EXCLUDE_DIRS
                 for part in path.relative_to(security.WORKSPACE_ROOT).parts
             ):
+                continue
+
+            # User exclusions
+            if exclude_patterns and any(fnmatch(rel_path, p) for p in exclude_patterns):
                 continue
 
             if path.is_file():
@@ -146,5 +204,6 @@ async def search_workspace(
         return "\n".join(result)
 
     except Exception as e:
-        await ctx.error(f"Search failed: {str(e)}")
+        if ctx:
+            await ctx.error(f"Search failed: {str(e)}")
         return f"ERROR: {str(e)}"

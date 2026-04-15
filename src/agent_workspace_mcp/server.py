@@ -43,16 +43,17 @@ mcp = FastMCP(
 
 # Register tools explicitly
 # Filesystem tools
-mcp.add_tool(filesystem.read_file)
-mcp.add_tool(filesystem.write_file)
-mcp.add_tool(filesystem.search_workspace)
+mcp.tool(annotations={"readOnlyHint": True})(filesystem.read_file)
+mcp.tool(annotations={"destructiveHint": True, "idempotentHint": True})(filesystem.write_file)
+mcp.tool(annotations={"readOnlyHint": True})(filesystem.list_directory)
+mcp.tool(annotations={"readOnlyHint": True})(filesystem.search_workspace)
 
 # Execution tools
-mcp.add_tool(execution.run_bash)
+mcp.tool()(execution.run_bash)
 
 # Editing tools
-mcp.add_tool(editing.apply_patch)
-mcp.add_tool(editing.search_and_replace)
+mcp.tool(annotations={"destructiveHint": True})(editing.apply_patch)
+mcp.tool(annotations={"destructiveHint": True})(editing.search_and_replace)
 
 
 def setup_logging() -> None:
