@@ -5,6 +5,8 @@
     "docker:pinDigests",
     "helpers:pinGitHubActionDigests"
   ],
+  "labels": ["dependencies"],
+  "minimumReleaseAge": "3 days",
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true
