@@ -1,0 +1,19 @@
+name: Cleanup GHCR
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"  # Runs at 03:00 UTC every Sunday
+  workflow_dispatch:     # Also allows manual triggering from the UI
+
+jobs:
+  cleanup-untagged-images:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write  # Crucial: allows deleting packages via the GITHUB_TOKEN
+    steps:
+      - name: Delete untagged GHCR packages
+        uses: Chizkiyahu/delete-untagged-ghcr-action@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository_owner: ${{ github.repository_owner }}
+          untagged_only: true
