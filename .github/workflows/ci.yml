@@ -129,14 +129,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Publish to MCP Registry (Skip on cron to avoid rate-limits/errors when version hasn't changed)
+      # Publish to MCP Registry only on push to main
       - name: Install mcp-publisher
-        if: github.event_name != 'schedule'
+        if: github.event_name == 'push'
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
       - name: Authenticate to MCP Registry
-        if: github.event_name != 'schedule'
+        if: github.event_name == 'push'
         run: ./mcp-publisher login github-oidc
       - name: Publish server to MCP Registry
-        if: github.event_name != 'schedule'
+        if: github.event_name == 'push'
         run: ./mcp-publisher publish
