@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import AsyncMock, patch
 from agent_workspace_mcp.tools.execution import run_bash
 
 
