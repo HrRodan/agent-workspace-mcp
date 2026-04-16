@@ -7,13 +7,13 @@
   "labels": ["dependencies"],
   "timezone": "UTC",
   "schedule": [
-    "before 5am on monday"
+    "* 0-4 * * *"
   ],
   "minimumReleaseAge": "3 days",
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
-    "schedule": ["before 5am on monday"]
+    "schedule": ["* 0-4 * * *"]
   },
   "vulnerabilityAlerts": {
     "enabled": true,
