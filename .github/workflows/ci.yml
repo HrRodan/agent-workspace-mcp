@@ -6,8 +6,8 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
-  schedule:
-    - cron: "0 6 * * 1"  # Weekly Monday 06:00 UTC ##
+  # schedule:
+  #   - cron: "0 6 * * 1"  # Weekly Monday 06:00 UTC ##
   workflow_dispatch:
 
 jobs:
@@ -63,6 +63,10 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for commit counting logic
 
+      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
+        with:
+          enable-cache: true
+
       - name: Log in to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
@@ -90,12 +94,18 @@ jobs:
           # 4. Construct the full ephemeral version (e.g., "1.1.5")
           FULL_VERSION="${BASE_VERSION}.${PATCH_COUNT}"
           
+          # 5. Extract Python version from uv environment
+          PYTHON_FULL_VERSION=$(uv run python --version | cut -d' ' -f2)
+          PYTHON_VERSION=$(echo "$PYTHON_FULL_VERSION" | cut -d. -f1,2)
+          
           echo "Computed version: $FULL_VERSION (Base: $BASE_VERSION, Patch: $PATCH_COUNT)"
           echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
           echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
           echo "major_version=$MAJOR_VERSION" >> $GITHUB_OUTPUT
+          echo "python_version=python-$PYTHON_VERSION" >> $GITHUB_OUTPUT
+          echo "python_full_version=python-$PYTHON_FULL_VERSION" >> $GITHUB_OUTPUT
           
-          # 5. Patch pyproject.toml locally in CI so the Docker build metadata is correct.
+          # 6. Patch pyproject.toml locally in CI so the Docker build metadata is correct.
           # This change is NOT committed back to the repo.
           sed -i "s/^version = .*/version = \"$FULL_VERSION\"/" pyproject.toml
       - name: Extract metadata (tags, labels) for Docker
@@ -109,6 +119,9 @@ jobs:
             # Tag with mutable floating major/minor versions
             type=raw,value=${{ steps.get_version.outputs.base_version }}
             type=raw,value=${{ steps.get_version.outputs.major_version }}
+            # Tag with Python version
+            type=raw,value=${{ steps.get_version.outputs.python_version }}
+            type=raw,value=${{ steps.get_version.outputs.python_full_version }}
             # Also maintain a 'latest' tag for convenience
             type=raw,value=latest,enable={{is_default_branch}}
       - name: Sync server.json version
