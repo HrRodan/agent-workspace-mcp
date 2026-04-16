@@ -96,10 +96,13 @@ async def main():
         client_session_timeout_seconds=60.0,
     )
 
-    # 2. Attach server to the Agent
+    # 2. Attach server to the Agent and load the skill instructions (optional)
+    with open("skills/agent-workspace-mcp/SKILL.md", "r") as f:
+        skill_instructions = f.read()
+
     agent = Agent(
         name="WorkspaceAgent",
-        instructions="You are a coding agent with access to a secure workspace. Use your tools to manage files and run bash commands.",
+        instructions=f"You are a coding agent with access to a secure workspace.\n\n{skill_instructions}",
         mcp_servers=[server],
     )
 
