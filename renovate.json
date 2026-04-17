@@ -4,42 +4,73 @@
     "config:best-practices",
     ":prNotPending"
   ],
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "timezone": "UTC",
   "schedule": [
     "* 0-4 * * *"
   ],
   "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
-    "schedule": ["* 0-4 * * *"]
+    "schedule": [
+      "* 0-4 * * *"
+    ]
   },
   "vulnerabilityAlerts": {
     "enabled": true,
-    "automerge": true,
-    "schedule": []
+    "automerge": true
   },
   "packageRules": [
     {
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "matchCurrentVersion": "!/^0/",
       "automerge": true,
       "automergeType": "branch"
     },
     {
-      "matchManagers": ["dockerfile"],
-      "groupName": "docker"
-    },
-    {
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "github-actions",
       "automerge": true,
       "automergeType": "branch"
     },
     {
-      "matchManagers": ["pep621"],
+      "matchManagers": [
+        "pep621"
+      ],
       "groupName": "python-deps"
+    },
+    {
+      "matchManagers": [
+        "python-version"
+      ],
+      "groupName": "python-core"
+    },
+    {
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchPackageNames": [
+        "python"
+      ],
+      "groupName": "python-core"
+    },
+    {
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "groupName": "docker",
+      "matchPackageNames": [
+        "!python"
+      ]
     }
   ]
 }
