@@ -58,11 +58,13 @@ mcp.tool(annotations={"destructiveHint": True})(editing.search_and_replace)
 
 def setup_logging() -> None:
     """Configure dual logging: stderr + rotating file in /workspace/.mcp/."""
-    log_dir = security.WORKSPACE_ROOT / ".mcp"
     try:
+        log_dir = security.safe_path(".mcp")
         log_dir.mkdir(parents=True, exist_ok=True)
     except Exception:
         # If /workspace is read-only and .mcp doesn't exist, log to stderr only
+        # We define a fallback log_dir to avoid UnboundLocalError
+        log_dir = security.WORKSPACE_ROOT / ".mcp"
         pass
 
     log_file = log_dir / "server.log"

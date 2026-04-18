@@ -159,6 +159,8 @@ async def search_workspace(
     """
     try:
         security.validate_glob_pattern(pattern)
+        
+        root_dir = os.path.realpath(str(security.WORKSPACE_ROOT))
         if ctx:
             await ctx.info(f"Searching for pattern: {pattern}")
 
@@ -171,6 +173,11 @@ async def search_workspace(
         from fnmatch import fnmatch
 
         for path in security.WORKSPACE_ROOT.glob(pattern):
+            # Explicitly normalize and validate each match - CodeQL sanitizer pattern
+            abs_match = os.path.realpath(str(path))
+            if not abs_match.startswith(root_dir):
+                continue
+                
             rel_path = str(path.relative_to(security.WORKSPACE_ROOT))
 
             # Security defaults
@@ -188,7 +195,7 @@ async def search_workspace(
                 if count >= security.MAX_SEARCH_RESULTS:
                     truncated = True
                     break
-                matches.append(str(path.relative_to(security.WORKSPACE_ROOT)))
+                matches.append(rel_path)
                 count += 1
 
         if not matches:
