@@ -160,7 +160,7 @@ async def search_workspace(
     try:
         security.validate_glob_pattern(pattern)
         
-        root_dir = os.path.realpath(str(security.WORKSPACE_ROOT))
+        root_dir = str(security.safe_path("."))
         if ctx:
             await ctx.info(f"Searching for pattern: {pattern}")
 
