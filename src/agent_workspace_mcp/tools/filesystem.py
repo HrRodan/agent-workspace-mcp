@@ -166,37 +166,41 @@ async def search_workspace(
 
         matches = []
         truncated = False
-
-        # We search relative to security.WORKSPACE_ROOT
-        # We need to manually count to handle truncation correctly
         count = 0
+        from pathlib import PurePath
         from fnmatch import fnmatch
 
-        for path in security.WORKSPACE_ROOT.glob(pattern):
-            # Explicitly normalize and validate each match - CodeQL sanitizer pattern
-            abs_match = os.path.realpath(str(path))
-            if not abs_match.startswith(root_dir):
-                continue
+        # We discovery files using os.walk (controlled navigation)
+        # and then filter in-memory using PurePath.match (safe string matching)
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            # Prune excluded directories in-place to avoid walking into them
+            dirnames[:] = [d for d in dirnames if d not in security.SEARCH_EXCLUDE_DIRS]
+            
+            # Calculate relative path of the current directory
+            rel_dir = os.path.relpath(dirpath, root_dir)
+            if rel_dir == ".":
+                rel_dir = ""
+
+            for filename in filenames:
+                rel_path = os.path.join(rel_dir, filename) if rel_dir else filename
                 
-            rel_path = str(path.relative_to(security.WORKSPACE_ROOT))
+                # Check user exclusions first
+                if exclude_patterns and any(fnmatch(rel_path, p) for p in exclude_patterns):
+                    continue
 
-            # Security defaults
-            if any(
-                part in security.SEARCH_EXCLUDE_DIRS
-                for part in path.relative_to(security.WORKSPACE_ROOT).parts
-            ):
-                continue
-
-            # User exclusions
-            if exclude_patterns and any(fnmatch(rel_path, p) for p in exclude_patterns):
-                continue
-
-            if path.is_file():
-                if count >= security.MAX_SEARCH_RESULTS:
-                    truncated = True
-                    break
-                matches.append(rel_path)
-                count += 1
+                # Use PurePath.match for secure glob pattern matching (string only)
+                # We also check the pattern with '**/ ' removed to match zero directories for '**'
+                if PurePath(rel_path).match(pattern) or (
+                    "**" in pattern and PurePath(rel_path).match(pattern.replace("**/", ""))
+                ):
+                    if count >= security.MAX_SEARCH_RESULTS:
+                        truncated = True
+                        break
+                    matches.append(rel_path)
+                    count += 1
+            
+            if truncated:
+                break
 
         if not matches:
             return f"No files found matching pattern '{pattern}'."
