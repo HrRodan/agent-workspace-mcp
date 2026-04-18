@@ -134,3 +134,9 @@ async def test_search_workspace_truncated(workspace, mock_ctx, monkeypatch):
     result = await search_workspace("**/*.py", mock_ctx)
     assert "Found 2 matches" in result
     assert "truncated" in result
+
+@pytest.mark.asyncio
+async def test_search_workspace_traversal_blocked(workspace, mock_ctx):
+    result = await search_workspace("../../**/*.py", mock_ctx)
+    assert "ERROR" in result
+    assert "Path traversal or absolute paths are not allowed" in result

@@ -158,6 +158,7 @@ async def search_workspace(
     Returns up to 50 paths. For content search use `run_bash('grep -rn ...')`.
     """
     try:
+        security.validate_glob_pattern(pattern)
         if ctx:
             await ctx.info(f"Searching for pattern: {pattern}")
 

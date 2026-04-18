@@ -1,7 +1,12 @@
 import os
 from pathlib import Path
 import pytest
-from agent_workspace_mcp.utils.security import safe_path, is_binary
+from agent_workspace_mcp.utils.security import (
+    safe_path,
+    is_binary,
+    validate_glob_pattern,
+    validate_patch_security,
+)
 
 def test_safe_path_relative(monkeypatch, tmp_path):
     monkeypatch.setattr("agent_workspace_mcp.utils.security.WORKSPACE_ROOT", tmp_path)
@@ -55,3 +60,57 @@ def test_is_binary(tmp_path):
 
 def test_is_binary_missing_file():
     assert is_binary(Path("/non/existent/file")) is False
+
+def test_validate_glob_pattern():
+    # Valid patterns
+    validate_glob_pattern("*.py")
+    validate_glob_pattern("src/**/*.py")
+    validate_glob_pattern("tests/test_*.py")
+    
+    # Invalid patterns
+    with pytest.raises(ValueError, match="Invalid glob pattern"):
+        validate_glob_pattern("../etc/passwd")
+    with pytest.raises(ValueError, match="Invalid glob pattern"):
+        validate_glob_pattern("/etc/passwd")
+    with pytest.raises(ValueError, match="Invalid glob pattern"):
+        validate_glob_pattern("~/roots")
+
+def test_validate_patch_security(monkeypatch, tmp_path):
+    monkeypatch.setattr("agent_workspace_mcp.utils.security.WORKSPACE_ROOT", tmp_path)
+    
+    # Valid patch
+    valid_patch = """--- a/src/main.py
++++ b/src/main.py
+@@ -1,1 +1,1 @@
+-print("old")
++print("new")
+"""
+    validate_patch_security(valid_patch)
+    
+    # Valid patch with /dev/null
+    new_file_patch = """--- /dev/null
++++ b/new_file.txt
+@@ -0,0 +1,1 @@
++hello
+"""
+    validate_patch_security(new_file_patch)
+
+    # Malicious patch 1: Traversal in header
+    malicious_patch_1 = """--- a/../../../etc/passwd
++++ b/src/main.py
+@@ -1,1 +1,1 @@
+-old
++new
+"""
+    with pytest.raises(ValueError, match="Security violation in patch header"):
+        validate_patch_security(malicious_patch_1)
+
+    # Malicious patch 2: Absolute path in header
+    malicious_patch_2 = """--- a/src/main.py
++++ /etc/passwd
+@@ -1,1 +1,1 @@
+-old
++new
+"""
+    with pytest.raises(ValueError, match="Security violation in patch header"):
+        validate_patch_security(malicious_patch_2)

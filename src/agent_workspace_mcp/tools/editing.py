@@ -114,6 +114,7 @@ async def apply_patch(
     """
     temp_patch = None
     try:
+        security.validate_patch_security(patch_content)
         if ctx:
             await ctx.info("Applying patch...")
 
