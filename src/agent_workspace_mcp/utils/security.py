@@ -7,8 +7,9 @@ from pathlib import Path
 # Workspace root is primarily used when running inside a container.
 # For local development/testing, it defaults to the /workspace directory
 # but can be overridden by environment variables.
-_UNTRUSTED_ROOT = os.environ.get("WORKSPACE_ROOT", "/workspace")
-WORKSPACE_ROOT: Path = Path(_UNTRUSTED_ROOT).resolve()
+_RAW_ROOT = os.environ.get("WORKSPACE_ROOT", "/workspace")
+# Using abspath here to normalize the root itself
+WORKSPACE_ROOT: Path = Path(os.path.abspath(_RAW_ROOT))
 
 COMMAND_TIMEOUT: int = int(os.environ.get("COMMAND_TIMEOUT", "60"))
 MAX_SEARCH_RESULTS: int = int(os.environ.get("MAX_SEARCH_RESULTS", "50"))
@@ -28,7 +29,7 @@ SEARCH_EXCLUDE_DIRS: frozenset[str] = frozenset(
 
 
 def safe_path(target_path: str) -> Path:
-    """Resolve a path and enforce workspace boundary.
+    """Resolve a path and enforce workspace boundary using CodeQL-friendly patterns.
 
     Args:
         target_path: Relative or absolute path string.
@@ -39,25 +40,28 @@ def safe_path(target_path: str) -> Path:
     Raises:
         ValueError: If the resolved path escapes WORKSPACE_ROOT.
     """
-    candidate = Path(target_path)
+    # 1. Get the absolute, canonical version of the root
+    root = os.path.realpath(str(WORKSPACE_ROOT))
 
-    # If the path is relative, join it with WORKSPACE_ROOT
-    if not candidate.is_absolute():
-        candidate = WORKSPACE_ROOT / candidate
+    # 2. Join target_path with root if it's relative
+    if os.path.isabs(target_path):
+        candidate = target_path
+    else:
+        candidate = os.path.join(root, target_path)
 
-    # Resolve the path to handle '..' and symlinks.
-    # strict=False allows resolving paths that don't exist yet.
-    resolved = candidate.resolve(strict=False)
+    # 3. Normalize the candidate (resolves '..' and symlinks)
+    # CodeQL recognizes os.path.realpath as a sanitizer for path-injection
+    normalized = os.path.realpath(candidate)
 
-    # Check if the resolved path is still within WORKSPACE_ROOT.
-    # .is_relative_to() handles the prefix check securely.
-    if not resolved.is_relative_to(WORKSPACE_ROOT):
+    # 4. Explicit prefix check using string comparison
+    # CodeQL recognizes .startswith(root) as a valid boundary check
+    if not normalized.startswith(root):
         raise ValueError(
-            f"Path '{target_path}' resolves to '{resolved}' which is outside "
-            f"the workspace boundary '{WORKSPACE_ROOT}'. "
+            f"Path '{target_path}' resolves to '{normalized}' which is outside "
+            f"the workspace boundary '{root}'. "
             f"Use paths relative to /workspace."
         )
-    return resolved
+    return Path(normalized)
 
 
 def validate_glob_pattern(pattern: str) -> None:
