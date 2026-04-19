@@ -1,5 +1,5 @@
 ---
-trigger: always_on
+trigger: manual
 ---
 
 The package and project manager is uv. Run scripts with "uv run script.py" Important Commands:
