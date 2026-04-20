@@ -104,6 +104,7 @@ def main() -> None:
     logger = logging.getLogger(__name__)
     logger.info("Agent Workspace MCP server starting...")
     logger.info("Workspace root: %s", security.WORKSPACE_ROOT)
+    logger.info("Log level: %s", security.LOG_LEVEL)
 
     # Run the server using stdio transport
     mcp.run()

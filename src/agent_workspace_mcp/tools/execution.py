@@ -3,10 +3,14 @@
 import os
 import signal
 import asyncio
+import logging
 from typing import Annotated
 from pydantic import Field
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
+from agent_workspace_mcp.tools import _logging
+
+logger = logging.getLogger(__name__)
 
 
 async def run_bash(
@@ -53,6 +57,7 @@ async def run_bash(
     if timeout is None:
         timeout = security.COMMAND_TIMEOUT
 
+    start_time = _logging.log_tool_entry(logger, "run_bash", command=command, timeout=timeout)
     if ctx:
         await ctx.info(f"Running command: {command}")
 
@@ -90,6 +95,15 @@ async def run_bash(
             result = f"[Exit code: {return_code}]"
             if output:
                 result += f"\n{output}"
+            
+            _logging.log_tool_exit(
+                logger, 
+                "run_bash", 
+                start_time, 
+                success=True, 
+                summary=f"exit_code={return_code}, output_len={len(output)}",
+                output=result
+            )
             return result
 
         except asyncio.TimeoutError:
@@ -102,12 +116,15 @@ async def run_bash(
                 pass
 
             error_msg = f"ERROR: Command timed out after {timeout}s. The process was killed. Simplify the command or increase timeout."
+            _logging.log_tool_exit(logger, "run_bash", start_time, success=False, summary="Timeout", output=error_msg)
             if ctx:
                 await ctx.error(error_msg)
             return error_msg
 
     except Exception as e:
         error_msg = f"ERROR: Failed to execute command: {str(e)}"
+        if "start_time" in locals():
+            _logging.log_tool_exit(logger, "run_bash", start_time, success=False, summary=str(e), output=error_msg)
         if ctx:
             await ctx.error(error_msg)
         return error_msg

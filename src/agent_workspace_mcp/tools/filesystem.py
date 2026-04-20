@@ -1,10 +1,14 @@
 """Filesystem tools for the Agent Workspace MCP."""
 
 import os
+import logging
 from typing import Annotated
 from pydantic import Field
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
+from agent_workspace_mcp.tools import _logging
+
+logger = logging.getLogger(__name__)
 
 
 async def read_file(
@@ -26,24 +30,33 @@ async def read_file(
     """
     try:
         path = security.safe_path(filepath)
+        start_time = _logging.log_tool_entry(logger, "read_file", filepath=filepath, offset=offset, limit=limit)
         if ctx:
             await ctx.info(f"Reading file: {filepath}")
 
         if not path.exists():
-            return f"ERROR: File '{filepath}' not found. Use list_directory() to discover available files."
+            res = f"ERROR: File '{filepath}' not found. Use list_directory() to discover available files."
+            _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=res, output=res)
+            return res
 
         if path.is_dir():
-            return f"ERROR: '{filepath}' is a directory. Use list_directory() to see its contents."
+            res = f"ERROR: '{filepath}' is a directory. Use list_directory() to see its contents."
+            _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=res, output=res)
+            return res
 
         if security.is_binary(path):
-            return f"ERROR: File '{filepath}' appears to be binary. read_file only supports text files."
+            res = f"ERROR: File '{filepath}' appears to be binary. read_file only supports text files."
+            _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=res, output=res)
+            return res
 
         file_size = path.stat().st_size
         if file_size > security.MAX_READ_SIZE_BYTES:
-            return (
+            res = (
                 f"ERROR: File '{filepath}' ({file_size} bytes) exceeds MAX_READ_SIZE_BYTES "
                 f"({security.MAX_READ_SIZE_BYTES}). Use shell commands like 'head' or 'grep' to process it."
             )
+            _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=res, output=res)
+            return res
 
         # Use errors="replace" to avoid crashing on invalid UTF-8 sequences in text files
         content = path.read_text(encoding="utf-8", errors="replace")
@@ -56,9 +69,13 @@ async def read_file(
             if ctx:
                 await ctx.info(f"Read {len(lines)} lines (offset {offset}, total {total_lines})")
 
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        _logging.log_tool_exit(logger, "read_file", start_time, success=True, summary=f"{len(lines)} lines returned", output=result)
+        return result
 
     except Exception as e:
+        if "start_time" in locals():
+            _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"Failed to read {filepath}: {str(e)}")
         return f"ERROR: {str(e)}"
@@ -80,6 +97,7 @@ async def write_file(
     """
     try:
         path = security.safe_path(filepath)
+        start_time = _logging.log_tool_entry(logger, "write_file", filepath=filepath, content_len=len(content))
         if ctx:
             await ctx.info(f"Writing to file: {filepath}")
 
@@ -91,9 +109,13 @@ async def write_file(
         temp_path.write_text(content, encoding="utf-8")
         os.replace(temp_path, path)
 
-        return f"Successfully wrote {len(content.encode('utf-8'))} bytes to {filepath}"
+        res_msg = f"Successfully wrote {len(content.encode('utf-8'))} bytes to {filepath}"
+        _logging.log_tool_exit(logger, "write_file", start_time, success=True, summary=res_msg, output=res_msg)
+        return res_msg
 
     except Exception as e:
+        if "start_time" in locals():
+            _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"Failed to write to {filepath}: {str(e)}")
         return f"ERROR: {str(e)}"
@@ -112,13 +134,18 @@ async def list_directory(
     """
     try:
         abs_path = security.safe_path(path)
+        start_time = _logging.log_tool_entry(logger, "list_directory", path=path)
         if ctx:
             await ctx.info(f"Listing directory: {path}")
 
         if not abs_path.exists():
-            return f"ERROR: Path '{path}' not found."
+            res = f"ERROR: Path '{path}' not found."
+            _logging.log_tool_exit(logger, "list_directory", start_time, success=False, summary=res, output=res)
+            return res
         if not abs_path.is_dir():
-            return f"ERROR: '{path}' is not a directory."
+            res = f"ERROR: '{path}' is not a directory."
+            _logging.log_tool_exit(logger, "list_directory", start_time, success=False, summary=res, output=res)
+            return res
 
         entries = []
         for item in abs_path.iterdir():
@@ -128,11 +155,17 @@ async def list_directory(
             entries.append(f"{prefix} {item.name}")
 
         if not entries:
-            return "Directory is empty."
+            res_msg = "Directory is empty."
+            _logging.log_tool_exit(logger, "list_directory", start_time, success=True, summary=res_msg, output=res_msg)
+            return res_msg
 
-        return "\n".join(sorted(entries))
+        result = "\n".join(sorted(entries))
+        _logging.log_tool_exit(logger, "list_directory", start_time, success=True, summary=f"{len(entries)} entries", output=result)
+        return result
 
     except Exception as e:
+        if "start_time" in locals():
+            _logging.log_tool_exit(logger, "list_directory", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"List directory failed: {str(e)}")
         return f"ERROR: {str(e)}"
@@ -161,6 +194,7 @@ async def search_workspace(
         security.validate_glob_pattern(pattern)
         
         root_dir = str(security.safe_path("."))
+        start_time = _logging.log_tool_entry(logger, "search_workspace", pattern=pattern, exclude_patterns=exclude_patterns)
         if ctx:
             await ctx.info(f"Searching for pattern: {pattern}")
 
@@ -203,7 +237,9 @@ async def search_workspace(
                 break
 
         if not matches:
-            return f"No files found matching pattern '{pattern}'."
+            res_msg = f"No files found matching pattern '{pattern}'."
+            _logging.log_tool_exit(logger, "search_workspace", start_time, success=True, summary=res_msg, output=res_msg)
+            return res_msg
 
         result = [f"Found {len(matches)} matches:"]
         result.extend(matches)
@@ -213,9 +249,13 @@ async def search_workspace(
                 f"... truncated at {security.MAX_SEARCH_RESULTS} results. Narrow your pattern."
             )
 
-        return "\n".join(result)
+        res_str = "\n".join(result)
+        _logging.log_tool_exit(logger, "search_workspace", start_time, success=True, summary=f"{len(matches)} matches", output=res_str)
+        return res_str
 
     except Exception as e:
+        if "start_time" in locals():
+            _logging.log_tool_exit(logger, "search_workspace", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"Search failed: {str(e)}")
         return f"ERROR: {str(e)}"
