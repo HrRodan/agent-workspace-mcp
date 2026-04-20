@@ -177,30 +177,36 @@ The server supports the following environment variables (passed via Docker `--en
 
 ---
 
-## 🛡️ Security Model
+## 🛡️ Security & Architecture Model
 
-This server is designed with a **defense-in-depth** strategy, providing multiple layers of isolation and protection:
+This server employs a **defense-in-depth** strategy, explicitly separating strict security boundaries from developer experience and operational reliability features.
 
-### 🐋 Container-Level Security
-- **Configurable Non-Root Identity**: The container runs under a dedicated `mcpuser`. By default, it uses UID 1000, but this is [customizable at build time](#1-pull-or-build-the-docker-image) to match your host user, preventing permission conflicts on volume mounts.
-- **Kernel Hardening**: All Linux capabilities are dropped (`--cap-drop=ALL`).
-- **Privilege Lockdown**: Prevents processes from gaining new privileges (`no-new-privileges:true`).
-- **Immutable Core**: The root filesystem is mounted **read-only** (`--read-only`).
-- **Standardized Metadata**: Adheres to the [OCI Image Specification](https://github.com/opencontainers/image-spec) for transparent auditing and discovery.
-- **Resource Quotas**: Hard limits on CPU, Memory, and PIDs prevent fork-bombs and host exhaustion.
-- **Ephemeral Sessions**: Containers are strictly ephemeral (`--rm`), ensuring no state survives between connections.
+### 🔒 Core Security Features
+These features are designed to protect the host system and enforce strict isolation boundaries.
 
-### 🛡️ Application-Level Security
-- **Path Guard**: Strict boundary enforcement prevents path traversal attacks outside `/workspace`.
-- **Command Control**: Mandatory timeouts (default 60s) and process group isolation capture and kill orphan processes.
-- **AST Validation**: `search_and_replace` validates Python, JSON, and TOML syntax in-memory before writing any changes.
-- **Atomic Operations**: File edits use temp-and-move logic to prevent filesystem corruption during power-loss or crashes.
-- **Size Enforcement**: Hard limits on file reads (1MB) and command outputs (50KB) protect against memory-overload attacks.
+- **Kernel Hardening**: All Linux capabilities are dropped (`--cap-drop=ALL`), neutralizing privilege escalation vectors.
+- **Privilege Lockdown**: Enforces `no-new-privileges:true` to prevent any process from gaining elevated rights.
+- **Immutable System Core**: The container's root filesystem is mounted entirely **read-only**, preventing persistent OS-level tampering.
+- **Resource Quotas**: Hard limitations on CPU, Memory, and PIDs mitigate denial-of-service (DoS) attempts like fork-bombs and host exhaustion.
+- **Strict Boundary Enforcement**: A robust path validator comprehensively blocks all path traversal attacks outside the designated `/workspace`.
+- **Process & Resource Control**: Mandatory command timeouts (default 60s) and strict process group isolation ensure runaway or malicious processes are killed.
+- **Memory-Overload Protection**: Hard limits on file reads (1MB) and command outputs (50KB) prevent memory exhaustion.
+- **Information Leakage Prevention**: Internal stack traces and system paths are suppressed and sanitized from tool outputs.
 
-### 📊 Observability & Auditing
-- **Real-time Logging**: All tool invocations are logged directly to the MCP client for immediate operator visibility.
-- **Sanitized Errors**: Internal system paths and stack traces are suppressed in tool outputs to prevent information leakage.
-- **Search Exclusions**: High-noise or sensitive directories (`.git`, `.venv`) are automatically excluded from search tools.
+### 🛠️ Developer Experience & Convenience
+Features focused on seamless integration, usability, and reducing friction during agentic workflows.
+
+- **Host-Aligned Non-Root Identity**: Runs as `mcpuser` with UID/GID [customizable at build time](#1-pull-or-build-the-docker-image), eliminating tedious file permission conflicts on host volume mounts.
+- **Intelligent Search Exclusions**: High-noise or sensitive directories (`.git`, `.venv`) are automatically ignored to keep context windows lean and relevant.
+- **Ephemeral Workspaces**: Containers are strictly ephemeral (`--rm`), guaranteeing a clean, predictable slate for every new session without state leaking across connections.
+- **Standardized Discovery**: Complies with the [OCI Image Specification](https://github.com/opencontainers/image-spec) for standardized container ecosystem integration and transparent auditing.
+
+### ⚙️ Reliability & Safety Mechanisms
+Features ensuring the structural integrity of the workspace and providing observability.
+
+- **Pre-Write AST Validation**: The `search_and_replace` tool performs in-memory syntax validation for Python, JSON, and TOML before persisting changes, preventing broken code states.
+- **Atomic File Operations**: Edits utilize temp-and-move logic to guarantee file integrity and prevent corruption, even during unexpected interruptions or crashes.
+- **Transparent Observability**: All tool invocations and state changes are streamed in real-time to the MCP client UI for immediate operator oversight.
 
 ---
 
