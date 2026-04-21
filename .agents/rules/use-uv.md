@@ -2,6 +2,8 @@
 trigger: always_on
 ---
 
+# Use UV as package manager
+
 The package and project manager is uv. Run scripts with "uv run script.py" Important Commands:
 | Command | Example | Action |
 | :--- | :--- | :--- |
