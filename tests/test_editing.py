@@ -1,32 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, patch
-from agent_workspace_mcp.tools.editing import apply_patch, search_and_replace
-
-
-@pytest.mark.asyncio
-async def test_apply_patch_success(workspace, mock_ctx):
-    test_file = workspace / "file.py"
-    test_file.write_text("print('hello')\n")
-
-    # Unified diff format
-    patch_content = """--- a/file.py
-+++ b/file.py
-@@ -1,1 +1,1 @@
--print('hello')
-+print('world')
-"""
-
-    with patch(
-        "agent_workspace_mcp.tools.editing.run_bash", new_callable=AsyncMock
-    ) as mock_run:
-        mock_run.return_value = "[Exit code: 0]\npatching file file.py"
-
-        result = await apply_patch(patch_content, mock_ctx)
-        assert "[Exit code: 0]" in result
-        assert "patching file file.py" in result
-        mock_run.assert_called_once()
-        # Verify it includes the patch command
-        assert "patch -p1 < " in mock_run.call_args[0][0]
+from agent_workspace_mcp.tools.editing import search_and_replace
 
 
 @pytest.mark.asyncio

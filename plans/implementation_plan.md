@@ -19,7 +19,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
 | Security module | `src/.../utils/security.py` | New file — path boundary enforcement |
 | Filesystem tools | `src/.../tools/filesystem.py` | New file — 5 tools |
 | Execution tools | `src/.../tools/execution.py` | New file — 2 tools |
-| Editing tools | `src/.../tools/editing.py` | New file — 2 tools |
+| Editing tools | `src/.../tools/editing.py` | New file — 1 tool |
 | Server entrypoint | `src/.../server.py` | New file — FastMCP instance, registration, logging |
 | Package init | `src/.../__init__.py`, `tools/__init__.py`, `utils/__init__.py` | New files — re-exports |
 | Test suite | `tests/` | New files — unit + E2E |
@@ -310,16 +310,9 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   - `[x]` `lint_workspace` on clean code → success message.
   - `[x]` `lint_workspace` on dirty code → returns diagnostics.
 
-### Step 8: Advanced Editing Tools & AST Validation
+### Step 8: Advanced Editing Tool & AST Validation
 - **File**: `src/agent_workspace_mcp/tools/editing.py`
 - **Action**:
-
-  #### `apply_patch(patch_content: str, ctx: Context) -> str`
-  - Writes `patch_content` to a temporary file (`/tmp/mcp_patch_XXXX.patch`).
-  - Applies via `run_bash("patch -p1 < /tmp/mcp_patch_XXXX.patch")`.
-  - Cleans up the temp file in a `finally` block.
-  - Returns `patch` stdout on success.
-  - On failure: returns full `patch` error output (includes context and rejected hunk details).
 
   #### `search_and_replace(filepath: str, exact_search_block: str, replace_block: str, ctx: Context) -> str`
   - **Step 1 — Read**: Load the file via `safe_path` + read.
@@ -363,8 +356,6 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
   - `[x]` `search_and_replace` with ambiguous (multiple) matches → error returned.
   - `[x]` `search_and_replace` on `.json` file with broken JSON replacement → error returned.
   - `[x]` `search_and_replace` on `.txt` file → skips validation, writes directly.
-  - `[x]` `apply_patch` with valid unified diff → file patched.
-  - `[x]` `apply_patch` with invalid/conflicting diff → error returned.
 
 ---
 
@@ -418,7 +409,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
       read_file, write_file, list_directory, get_file_info, search_workspace,
   )
   from agent_workspace_mcp.tools.execution import run_bash, lint_workspace
-  from agent_workspace_mcp.tools.editing import apply_patch, search_and_replace
+  from agent_workspace_mcp.tools.editing import search_and_replace
 
   # Register all tools explicitly to keep submodules independently testable
   mcp.add_tool(read_file)
@@ -673,7 +664,7 @@ Build a highly secure, containerized Model Context Protocol (MCP) server providi
 
 > [!IMPORTANT]
 > **Q3: `search_and_replace` Uniqueness Enforcement.**
-> The current design requires the search block to appear exactly once. If the agent needs to replace multiple identical lines (e.g., repeated import statements), it must use `apply_patch` instead. Should we add an optional `occurrence: int` parameter, or is the strict uniqueness constraint the right design for LLM safety?
+> The current design requires the search block to appear exactly once. If the agent needs to replace multiple identical lines (e.g., repeated import statements), it must either include more context in the search block to make it unique or we should consider adding an optional `occurrence: int` parameter. Should we keep the strict uniqueness constraint as the primary design for LLM safety?
 
 ---
 

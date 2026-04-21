@@ -52,7 +52,6 @@ mcp.tool(annotations={"readOnlyHint": True})(filesystem.search_workspace)
 mcp.tool()(execution.run_bash)
 
 # Editing tools
-mcp.tool(annotations={"destructiveHint": True})(editing.apply_patch)
 mcp.tool(annotations={"destructiveHint": True})(editing.search_and_replace)
 
 

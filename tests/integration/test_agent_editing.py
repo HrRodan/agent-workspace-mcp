@@ -84,7 +84,7 @@ async def test_agent_file_editing(agent_workspace: Path):
         name="EditorAgent",
         instructions=(
             "You are a meticulous code editor. You locate files in your workspace, "
-            "perform precise modifications using search_and_replace or apply_patch tools, "
+            "perform precise modifications using the search_and_replace tool, "
             "and verify your changes by running the code."
         ),
         model=LitellmModel(model=model_name),

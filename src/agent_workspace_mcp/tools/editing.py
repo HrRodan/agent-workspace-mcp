@@ -6,7 +6,6 @@ import os
 import ast
 import json
 import tomllib
-import tempfile
 import logging
 from typing import Annotated
 from pydantic import Field
@@ -103,51 +102,6 @@ def _apply_with_indent_preservation(
     result = list(content_lines)
     result[match_start : match_start + len(old_lines)] = processed_new_lines
     return result
-
-
-async def apply_patch(
-    patch_content: Annotated[
-        str,
-        Field(description="Unified diff in standard patch format. Paths relative to /workspace."),
-    ],
-    ctx: Context = None,
-) -> str:
-    """Apply a unified diff (`patch -p1`) to workspace files.
-
-    For single edits, prefer search_and_replace (includes syntax validation).
-    """
-    temp_patch = None
-    try:
-        security.validate_patch_security(patch_content)
-        start_time = _logging.log_tool_entry(logger, "apply_patch", patch_size=len(patch_content))
-        if ctx:
-            await ctx.info("Applying patch...")
-
-        # Create a temporary patch file in the system temp directory
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".patch", delete=False, dir=tempfile.gettempdir()
-        ) as tmp:
-            tmp.write(patch_content)
-            temp_patch = tmp.name
-
-        command = f"patch -p1 < {temp_patch}"
-        result = await run_bash(command, timeout=security.COMMAND_TIMEOUT, ctx=ctx)
-
-        _logging.log_tool_exit(logger, "apply_patch", start_time, success=True, summary="Patch applied")
-        return result
-
-    except Exception as e:
-        if "start_time" in locals():
-            _logging.log_tool_exit(logger, "apply_patch", start_time, success=False, summary=str(e), output=str(e))
-        if ctx:
-            await ctx.error(f"Failed to apply patch: {str(e)}")
-        return f"ERROR: {str(e)}"
-    finally:
-        if temp_patch and os.path.exists(temp_patch):
-            try:
-                os.remove(temp_patch)
-            except Exception:
-                pass
 
 
 async def search_and_replace(

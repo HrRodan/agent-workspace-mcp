@@ -17,7 +17,7 @@ The server's behavior must be configurable via environment variables with sensib
 |---|---|---|
 | `WORKSPACE_ROOT` | `/workspace` | Root directory for all sandboxed operations. |
 | `UV_PROJECT_ENVIRONMENT` | `/workspace/.venv_container` | Isolates container venv from host venv. |
-| `COMMAND_TIMEOUT` | `30` | Seconds before `run_bash` / `apply_patch` kills a subprocess. |
+| `COMMAND_TIMEOUT` | `30` | Seconds before `run_bash` kills a subprocess. |
 | `MAX_SEARCH_RESULTS` | `50` | Ceiling for `search_workspace` glob output. |
 | `MAX_READ_SIZE_BYTES` | `1048576` (1 MB) | Maximum file size `read_file` will return inline. |
 | `LOG_LEVEL` | `INFO` | Python `logging` level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
@@ -49,7 +49,7 @@ All tools must utilize **Pydantic** (via `Annotated[..., Field(...)]`) for input
 
 ### 5.1 Execution & Environment Tools
 * **`run_bash`** `(command: str, timeout: int = COMMAND_TIMEOUT)`
-  * *Description:* Executes shell commands in `/workspace`. Primary vector for running `uv init`, `uv add`, `uv run`, and applying `patch` diffs.
+  * *Description:* Executes shell commands in `/workspace`. Primary vector for running `uv init`, `uv add`, and `uv run`.
   * *Implementation:* Must use `asyncio.create_subprocess_exec` with `["/bin/sh", "-c", command]` (avoids direct shell invocation, more compatible with `--cap-drop=ALL`). Enforce timeout via `asyncio.wait_for`. Capture both `stdout` and `stderr`. The `cwd` must be set to `WORKSPACE_ROOT`.
   * *Return:* Combined stdout/stderr output, truncated to a sensible limit (e.g., 50KB) with a truncation notice if exceeded.
 * **`lint_workspace`** `(path: str = ".")`
@@ -64,10 +64,6 @@ All tools must utilize **Pydantic** (via `Annotated[..., Field(...)]`) for input
 * **`search_workspace`** `(pattern: str)`: Glob search (e.g., `**/*.py`), truncated to `MAX_SEARCH_RESULTS` results to protect token limits. Must exclude `.venv_container/`, `.mcp/`, `__pycache__/`, and `.git/` by default to reduce noise.
 
 ### 5.3 Advanced Editing Tools
-* **`apply_patch`** `(patch_content: str)`
-  * *Description:* Applies a Unified Diff (`.patch` format) to the workspace using the native `patch` utility.
-  * *Implementation:* Writes the diff to a temporary file in `/tmp` (available via `tmpfs`) and executes `patch -p1 < temp.patch` via `run_bash`. The temporary file is cleaned up in a `finally` block.
-  * *Validation:* Verify `patch` exit code. On failure, return the rejection message from `patch` verbatim (it includes line numbers and context).
 * **`search_and_replace`** `(filepath: str, exact_search_block: str, replace_block: str)`
   * *Description:* Swaps a specific string block (highly token-efficient). Agent should be prompted to use `read_file` first to ensure perfect whitespace matching.
   * *Validation Gate:* The `exact_search_block` must exist exactly once in the file (reject if zero or multiple matches, reporting the count). Edits are performed in-memory first. Syntax validation based on file extension:
@@ -91,7 +87,7 @@ All tools must utilize **Pydantic** (via `Annotated[..., Field(...)]`) for input
   │       │   ├── __init__.py      # Re-exports all tool functions
   │       │   ├── filesystem.py    # read_file, write_file, list_directory, get_file_info, search_workspace
   │       │   ├── execution.py     # run_bash, lint_workspace
-  │       │   └── editing.py       # apply_patch, search_and_replace
+  │       │   └── editing.py       # search_and_replace
   │       └── utils/
   │           ├── __init__.py
   │           └── security.py      # WORKSPACE_ROOT, safe_path(), env var loading
