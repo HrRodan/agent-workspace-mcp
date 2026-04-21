@@ -5,22 +5,35 @@
 # Runtime user: mcpuser (UID 1000 by default)
 # =============================================================================
 
+# Define the base image once as a global ARG
+ARG BASE_IMAGE=python:3.14.4-slim-trixie@sha256:538a18f1db92b4210a0b71aca2d14c156a96dedbe8867465c8ff4dce04d2ec39
+
 # --- Stage 1: uv binary ---
 FROM ghcr.io/astral-sh/uv:0.11.7@sha256:240fb85ab0f263ef12f492d8476aa3a2e4e1e333f7d67fbdd923d00a506a516a AS uv_bin
 
 # --- Stage 2: Runtime ---
-FROM python:3.14.4-slim-trixie@sha256:538a18f1db92b4210a0b71aca2d14c156a96dedbe8867465c8ff4dce04d2ec39
+FROM ${BASE_IMAGE}
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
 COPY --from=uv_bin /uv /uvx /bin/
 
 # OCI & MCP metadata
+ARG VERSION="0.0.0-local"
+ARG REVISION="local"
+ARG CREATED="unknown"
+# Re-declare the global ARG within this stage to make it available for LABEL
+ARG BASE_IMAGE
+
 LABEL org.opencontainers.image.title="Agent Workspace MCP" \
       org.opencontainers.image.description="Sandboxed agentic workspace MCP server for LLMs" \
       org.opencontainers.image.url="https://github.com/HrRodan/agent-workspace-mcp" \
       org.opencontainers.image.source="https://github.com/HrRodan/agent-workspace-mcp" \
       org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${CREATED}" \
+      org.opencontainers.image.base.name="${BASE_IMAGE}" \
       io.modelcontextprotocol.server.name="io.github.HrRodan/agent-workspace-mcp"
 
 # Install minimal system utilities required by the agentic workspace

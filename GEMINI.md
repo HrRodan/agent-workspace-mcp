@@ -4,7 +4,7 @@
 
 @./.agents/rules/information-retrival.md
 
-## Testing
+# Testing
 
 Do **not** run integration tests under `/tests/integration` by default. They execute real LLM calls and incur costs.
 
