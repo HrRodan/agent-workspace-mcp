@@ -37,7 +37,7 @@ jobs:
           MAJOR_VERSION=$(echo "$BASE_VERSION" | cut -d. -f1)
           
           # 2. Find last version change
-          LAST_VERSION_COMMIT=$(git log -1 --format=%H -S "version =" pyproject.toml || git rev-list --max-parents=0 HEAD)
+          LAST_VERSION_COMMIT=$(git log -1 --format=%H -G "^version = " -- pyproject.toml || git rev-list --max-parents=0 HEAD)
           
           # 3. Count commits since that change
           PATCH_COUNT=$(git rev-list --count $LAST_VERSION_COMMIT..HEAD)
