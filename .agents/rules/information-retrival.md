@@ -11,4 +11,3 @@ Use tavily_search for regular web search, but always prefer Context7 for all doc
 ## Documentation, libraries, API
 
 Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
-

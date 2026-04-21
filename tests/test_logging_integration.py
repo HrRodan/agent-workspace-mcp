@@ -19,7 +19,7 @@ async def test_filesystem_logging(workspace, mock_ctx, caplog):
     
     # 2. Test write_file logging
     await write_file("new_log.txt", "content", ctx=mock_ctx)
-    assert "TOOL_CALL write_file(filepath='new_log.txt', content_len=7)" in caplog.text
+    assert "TOOL_CALL write_file(filepath='new_log.txt', content_len=7, create_only=True)" in caplog.text
     assert "TOOL_DONE write_file [OK]" in caplog.text
     # Output is same as summary, so snippet should be suppressed
     assert "Output snippet" not in caplog.text
