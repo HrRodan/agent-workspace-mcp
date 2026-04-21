@@ -59,6 +59,52 @@ async def test_write_file(workspace, mock_ctx):
 
 
 @pytest.mark.asyncio
+async def test_write_file_create_only_blocks_overwrite(workspace, mock_ctx):
+    (workspace / "existing.txt").write_text("old")
+    result = await write_file("existing.txt", "new", mock_ctx)
+    assert "already exists" in result
+    assert (workspace / "existing.txt").read_text() == "old"
+
+
+@pytest.mark.asyncio
+async def test_write_file_overwrite_allowed(workspace, mock_ctx):
+    (workspace / "existing.txt").write_text("old")
+    result = await write_file("existing.txt", "new", create_only=False, ctx=mock_ctx)
+    assert "Successfully wrote" in result
+    assert (workspace / "existing.txt").read_text() == "new"
+
+
+@pytest.mark.asyncio
+async def test_write_file_size_guard(workspace, mock_ctx, monkeypatch):
+    monkeypatch.setattr("agent_workspace_mcp.utils.security.MAX_WRITE_SIZE_BYTES", 5)
+    result = await write_file("too_large.txt", "123456", mock_ctx)
+    assert "exceeds MAX_WRITE_SIZE_BYTES" in result
+    assert not (workspace / "too_large.txt").exists()
+
+
+@pytest.mark.asyncio
+async def test_write_file_validates_syntax(workspace, mock_ctx):
+    # Invalid python
+    result = await write_file("bad.py", "def foo(:", mock_ctx)
+    assert "Python syntax error" in result
+    assert not (workspace / "bad.py").exists()
+
+    # Valid python
+    result = await write_file("good.py", "def foo(): pass", mock_ctx)
+    assert "Successfully wrote" in result
+    assert (workspace / "good.py").exists()
+
+
+@pytest.mark.asyncio
+async def test_write_file_validates_jsonl(workspace, mock_ctx):
+    content = '{"a": 1}\n{"b": 2' # Missing bracket on line 2
+    result = await write_file("bad.jsonl", content, mock_ctx)
+    assert "JSONL parse error at line 2" in result
+    assert not (workspace / "bad.jsonl").exists()
+
+
+
+@pytest.mark.asyncio
 async def test_list_directory(workspace, mock_ctx):
     (workspace / "file.txt").write_text("file")
     (workspace / "subdir").mkdir()

@@ -25,6 +25,7 @@ When you have access to this MCP server, you MUST adhere to the following rules 
   - Bash commands timeout after 60 seconds by default.
   - Bash output is truncated at 50KB. Use `head`, `tail`, or `grep` for large outputs.
   - File reads (`read_file`) are limited to 1MB. By default, it reads 100 lines. Use `offset` and `limit` to paginate.
+  - File writes (`write_file`) are limited to 5MB and will fail if the file already exists unless `create_only=False` is passed.
 
 ## 🛠️ Available Tools
 
@@ -32,13 +33,16 @@ When you have access to this MCP server, you MUST adhere to the following rules 
 - **`list_directory(path)`**: Lists files `[F]` and directories `[D]`. Automatically excludes noise like `.git` and `.venv`.
 - **`search_workspace(pattern, exclude_patterns)`**: Find files by glob (e.g., `src/**/*.py`). Note: For deep text/content search, prefer `run_bash("grep -rn ...")`.
 - **`read_file(filepath, offset, limit)`**: Read file contents safely. 
-- **`write_file(filepath, content)`**: Create a new file or completely overwrite an existing one. Creates missing parent directories automatically.
+- **`write_file(filepath, content, create_only)`**: Create a new file with **automatic syntax validation** (for `.py`, `.json`, `.jsonl`, `.toml`, `.yaml`).
+  - **Overwrite Protection:** By default, it will FAIL if the file exists. To overwrite, you MUST explicitly pass `create_only=False`.
+  - **Size Guard:** Enforces a 5MB maximum write size.
+  - Creates missing parent directories automatically.
 
 ### Code Editing (Precision Tools)
 - **`search_and_replace(filepath, edits, dry_run)`**: Your primary tool for modifying existing files.
   - Takes a list of edits: `[{"old": "exact text", "new": "replacement text"}]`.
   - **Fuzzy Whitespace Fallback:** If exact match fails, it automatically attempts to match ignoring leading/trailing whitespace and preserves relative indentation!
-  - **Auto-Validation:** Automatically validates syntax for `.py`, `.json`, `.toml`, and `.yaml` files before saving to prevent corrupting the file.
+  - **Auto-Validation:** Automatically validates syntax for `.py`, `.json`, `.jsonl`, `.toml`, and `.yaml` files before saving to prevent corrupting the file.
   - **Best Practice:** Always read the file first (`read_file`) to ensure your `"old"` text is accurate and unique. If it fails due to multiple matches, include more surrounding lines in `"old"`.
 
 ### Execution
@@ -59,7 +63,7 @@ To optimize context window usage, prefer these pre-installed tools when using `r
 
 ## 💡 Best Practices & Workflows
 1. **Investigate First:** Always use `list_directory` or `search_workspace` to understand the project structure before writing code.
-2. **Edit Safely:** For targeted edits, prefer `search_and_replace` over `write_file` or manual bash commands (like `sed`). It is significantly safer due to its built-in AST validation and atomic writes.
+2. **Edit Safely:** For targeted edits, prefer `search_and_replace` over `write_file` or manual bash commands (like `sed`). It is significantly safer due to its built-in AST/syntax validation and atomic writes. If you must overwrite a file entirely, use `write_file` with `create_only=False`.
 3. **Iterative Development:** Write code -> Run it (`uv run ...`) -> Check exit codes and output -> Fix errors with `search_and_replace` -> Re-run.
 4. **Avoid Large Output:** If a command generates massive output, redirect it to a file (`> output.txt`) and read it iteratively, or pipe it through `grep`.
 `\</instructions\>`

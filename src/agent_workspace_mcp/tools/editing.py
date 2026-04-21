@@ -3,16 +3,13 @@
 import re
 import difflib
 import os
-import ast
-import json
-import tomllib
 import logging
 from typing import Annotated
 from pydantic import Field
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools.execution import run_bash
-from agent_workspace_mcp.tools import _logging
+from agent_workspace_mcp.tools import _logging, validation
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +118,7 @@ async def search_and_replace(
 ) -> str:
     """Replace substrings in a file. Fallback to fuzzy whitespace matching if exact fails. Use this as primary tool to edit files.
 
-    Returns unified diff. Validates .py, .json, .toml, .yaml syntax after edits.
+    Returns unified diff. Validates .py, .json, .jsonl, .toml, .yaml syntax after edits.
     """
     try:
         path = security.safe_path(filepath)
@@ -197,36 +194,11 @@ async def search_and_replace(
 
         # 3. Validate syntax (only if content changed)
         if current_content != content:
-            ext = path.suffix.lower()
-            if ext == ".py":
-                try:
-                    ast.parse(current_content)
-                except SyntaxError as e:
-                    res = f"ERROR: Python syntax error at line {e.lineno}: {e.msg}."
-                    _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                    return res
-            elif ext == ".json":
-                try:
-                    json.loads(current_content)
-                except json.JSONDecodeError as e:
-                    res = f"ERROR: JSON parse error at line {e.lineno}: {e.msg}."
-                    _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                    return res
-            elif ext == ".toml":
-                try:
-                    tomllib.loads(current_content)
-                except Exception as e:
-                    res = f"ERROR: TOML parse error: {str(e)}."
-                    _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                    return res
-            elif ext in (".yaml", ".yml"):
-                try:
-                    import yaml
-                    yaml.safe_load(current_content)
-                except Exception as e:
-                    res = f"ERROR: YAML parse error: {str(e)}."
-                    _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                    return res
+            syntax_error = validation.validate_syntax(current_content, filepath)
+            if syntax_error:
+                res = f"ERROR: {syntax_error}"
+                _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
+                return res
 
         # 4. Generate diff (using 3 lines of context)
         diff = "".join(

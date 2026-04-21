@@ -6,7 +6,7 @@ from typing import Annotated
 from pydantic import Field
 from fastmcp import Context
 from agent_workspace_mcp.utils import security
-from agent_workspace_mcp.tools import _logging
+from agent_workspace_mcp.tools import _logging, validation
 
 logger = logging.getLogger(__name__)
 
@@ -89,27 +89,62 @@ async def write_file(
         str,
         Field(description="The complete file content to write."),
     ],
+    create_only: Annotated[
+        bool,
+        Field(description="If True, fail if file already exists. Set to False to allow overwriting."),
+    ] = True,
     ctx: Context = None,
 ) -> str:
-    """Create or overwrite a file.
+    """Create a new file or optionally overwrite an existing one.
 
     Creates parent directories if needed. For partial edits, prefer search_and_replace.
+    Refuses to overwrite by default (create_only=True).
     """
     try:
         path = security.safe_path(filepath)
-        start_time = _logging.log_tool_entry(logger, "write_file", filepath=filepath, content_len=len(content))
+        start_time = _logging.log_tool_entry(logger, "write_file", filepath=filepath, content_len=len(content), create_only=create_only)
         if ctx:
             await ctx.info(f"Writing to file: {filepath}")
 
-        # Ensure parent directories exist
+        # 1. Size guard
+        content_bytes = content.encode("utf-8")
+        if len(content_bytes) > security.MAX_WRITE_SIZE_BYTES:
+            res = (
+                f"ERROR: Content ({len(content_bytes)} bytes) exceeds MAX_WRITE_SIZE_BYTES "
+                f"({security.MAX_WRITE_SIZE_BYTES})."
+            )
+            _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=res, output=res)
+            return res
+
+        # 2. Overwrite protection
+        if create_only and path.exists():
+            res = f"ERROR: File '{filepath}' already exists and create_only=True."
+            _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=res, output=res)
+            return res
+
+        # 3. Ensure parent directories exist
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Atomic write
+        # 4. Atomic write with validation
         temp_path = path.with_suffix(f"{path.suffix}.tmp")
-        temp_path.write_text(content, encoding="utf-8")
-        os.replace(temp_path, path)
+        try:
+            temp_path.write_text(content, encoding="utf-8")
 
-        res_msg = f"Successfully wrote {len(content.encode('utf-8'))} bytes to {filepath}"
+            # 5. Syntax validation (gatekeeper)
+            syntax_error = validation.validate_syntax(content, filepath)
+            if syntax_error:
+                temp_path.unlink(missing_ok=True)
+                res = f"ERROR: {syntax_error} File was NOT written."
+                _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=syntax_error, output=res)
+                return res
+
+            os.replace(temp_path, path)
+        finally:
+            # Cleanup temp file if replace didn't happen
+            if temp_path.exists():
+                temp_path.unlink()
+
+        res_msg = f"Successfully wrote {len(content_bytes)} bytes to {filepath}"
         _logging.log_tool_exit(logger, "write_file", start_time, success=True, summary=res_msg, output=res_msg)
         return res_msg
 

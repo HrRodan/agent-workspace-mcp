@@ -14,7 +14,7 @@ A unified Model Context Protocol (MCP) server providing a **highly secure, conta
 - **🐚 Secure Bash Access**: Execute shell commands with mandatory timeouts and merged output streams.
 - **📂 Robust Filesystem**: Path-traversal protected operations for reading, writing, and searching the workspace.
 - **🛡️ Multi-Layer Security**: Non-root execution, dropped capabilities, resource limits, and a read-only root filesystem.
-- ⚡ **Precision Editing**: Advanced `search_and_replace` with **fuzzy whitespace matching**, **indentation preservation**, dry-run support, and syntax validation for Python, JSON, TOML, and YAML.
+- ⚡ **Precision Editing**: Advanced `search_and_replace` with **fuzzy whitespace matching**, **indentation preservation**, dry-run support, and syntax validation for Python, JSON, JSONL, TOML, and YAML.
 - **📊 Real-time Observability**: Direct logging to MCP client UI and persistent rotating audit logs.
 
 ---
@@ -40,7 +40,7 @@ flowchart TD
             SecurityGuard --> ExecTools["Execution (run_bash)"]
         end
 
-        EditTools -- "AST Verification" --> Validator["Syntax Validations (Python, JSON, TOML)"]
+        EditTools -- "AST Verification" --> Validator["Syntax Validations (Python, JSON, JSONL, TOML, YAML)"]
         ExecTools -- "Process Group (Timeout=60s)" --> Shell["/bin/sh Subprocess"]
         Shell -- "Package Mgt & Checks" --> UV["uv Environment / Ruff"]
         
@@ -153,11 +153,11 @@ Add the following configuration to your `claude_desktop_config.json` or Cursor s
 | Tool | Description |
 |---|---|
 | `read_file` | Read text files with optional `offset` and `limit` (default: 100 lines). |
-| `write_file` | Create or overwrite files (atomic write). |
+| `write_file` | Create files with **syntax validation** and a **5MB size guard**. Refuses to overwrite existing files by default (`create_only=True`). |
 | `list_directory` | List contents with `[F]`ile and `[D]`irectory prefixes. |
 | `search_workspace` | Find files by glob pattern with support for `exclude_patterns`. |
 | `run_bash` | Execute shell commands in `/workspace` with a 60s timeout. |
-| `search_and_replace` | Multi-edit tool with **fuzzy whitespace matching**, **indentation preservation**, dry-run mode, and syntax validation. |
+| `search_and_replace` | Multi-edit tool with **fuzzy whitespace matching**, **indentation preservation**, dry-run mode, and **syntax validation (Python, JSON, JSONL, TOML, YAML)**. |
 
 ---
 
@@ -171,6 +171,7 @@ The server supports the following environment variables (passed via Docker `--en
 | `COMMAND_TIMEOUT` | `60` | Default seconds before `run_bash` kills a process. |
 | `MAX_SEARCH_RESULTS` | `50` | Maximum results returned by `search_workspace`. |
 | `MAX_READ_SIZE_BYTES` | `1048576` | Maximum file size for `read_file` (1MB). |
+| `MAX_WRITE_SIZE_BYTES` | `5242880` | Maximum file size for `write_file` (5MB). |
 | `LOG_LEVEL` | `INFO` | Python logging level (DEBUG, INFO, etc.). |
 
 ---
@@ -202,7 +203,8 @@ Features focused on seamless integration, usability, and reducing friction durin
 ### ⚙️ Reliability & Safety Mechanisms
 Features ensuring the structural integrity of the workspace and providing observability.
 
-- **Pre-Write AST Validation**: The `search_and_replace` tool performs in-memory syntax validation for Python, JSON, and TOML before persisting changes, preventing broken code states.
+- **Pre-Write Syntax Validation**: Both `write_file` and `search_and_replace` perform in-memory syntax validation for Python, JSON, JSONL, TOML, and YAML before persisting changes, preventing broken code states.
+- **Fail-Safe Writing**: `write_file` blocks accidental overwrites of existing files by default and enforces a 5MB size guard to prevent workspace flooding.
 - **Atomic File Operations**: Edits utilize temp-and-move logic to guarantee file integrity and prevent corruption, even during unexpected interruptions or crashes.
 - **Transparent Observability**: All tool invocations and state changes are streamed in real-time to the MCP client UI for immediate operator oversight.
 

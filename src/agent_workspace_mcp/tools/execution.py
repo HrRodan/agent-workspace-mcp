@@ -19,7 +19,7 @@ async def run_bash(
         Field(
             description=(
                 "The shell command to execute. "
-                "All Python operations MUST use `uv` (see tool description for details)."
+                "All Python operations MUST use `uv` (see tool description)."
             )
         ),
     ],

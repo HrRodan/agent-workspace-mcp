@@ -31,7 +31,7 @@ Transform tasks into verifiable goals and loop until verified. Never mark a task
 
 ## 4. Production-Ready Standards
 * **Completeness:** Include error handling, logging/metrics hooks, type hints, and comments on complex logic. 
-* **Documentation:** Update or create all relevant docs (e.g., `README.md`, docstrings, module docstrings) alongside implementation.
+* **Documentation (critical):** Update or create all relevant docs (especially `README.md`, docstrings, module docstrings) alongside implementation.
 * **No AI Slop:** Remove all unnecessary comments and AI reasoning artifacts from the final code output. Match the existing codebase style perfectly.
 
 ## Required Communication Format
