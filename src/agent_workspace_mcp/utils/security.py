@@ -25,6 +25,7 @@ SEARCH_EXCLUDE_DIRS: frozenset[str] = frozenset(
         "__pycache__",
         ".git",
         ".ruff_cache",
+        ".venv",
     }
 )
 
