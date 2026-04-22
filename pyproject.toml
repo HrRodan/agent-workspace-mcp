@@ -36,10 +36,9 @@ dev = [
 
 [tool.pyrefly]
 project-includes = ["**/*.py","**/*.ipynb"]
-project-excludes = ["**/node_modules", "**/__pycache__", "**/*venv/**", "**/.gemini/**", "**/.venv/**", "**/*[!/.]*/**"]
+project-excludes = ["**/node_modules", "**/__pycache__", "**/*venv/**", "**/.gemini/**", "**/.venv/**", "**/*[!/.]*/**","**/tmp/**","**/__pyrefly_virtual__/**"]
 use-ignore-files = true
 search-path = ["."]
-ignore-path = ["tmp/**","__pyrefly_virtual__/**"]
 
 [tool.ruff]
 
