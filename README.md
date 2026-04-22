@@ -81,6 +81,7 @@ async def main():
             "command": "docker",
             "args": [
                 "run", "-i", "--rm", "--init",
+                # "--network", "none", # Network Isolation (optional) - see below
                 "--memory=2g", "--cpus=2.0",
                 "--pids-limit=256",
                 "--cap-drop=ALL", "--security-opt=no-new-privileges:true",
@@ -127,6 +128,7 @@ Add the following configuration to your `claude_desktop_config.json` or Cursor s
       "command": "docker",
       "args": [
         "run", "-i", "--rm", "--init",
+        // "--network", "none", // Network Isolation (optional) - see below
         "--memory=2g", "--cpus=2.0",
         "--pids-limit=256",
         "--cap-drop=ALL", "--security-opt=no-new-privileges:true",
@@ -207,6 +209,28 @@ Features ensuring the structural integrity of the workspace and providing observ
 - **Fail-Safe Writing**: `write_file` blocks accidental overwrites of existing files by default and enforces a 5MB size guard to prevent workspace flooding.
 - **Atomic File Operations**: Edits utilize temp-and-move logic to guarantee file integrity and prevent corruption, even during unexpected interruptions or crashes.
 - **Transparent Observability**: All tool invocations and state changes are streamed in real-time to the MCP client UI for immediate operator oversight.
+
+### 🌐 Network Isolation (Optional)
+
+By default, the container has full network access via Docker's `bridge` network. For maximum isolation, you can completely disable the network stack using `--network none`:
+
+```bash
+docker run -i --rm --init \
+  --network none \
+  --memory=2g --cpus=2.0 --pids-limit=256 \
+  --cap-drop=ALL --security-opt=no-new-privileges:true \
+  --read-only \
+  --tmpfs /tmp:size=64m \
+  --tmpfs /home/mcpuser/.cache:size=512m \
+  --user 1000:1000 \
+  -v /path/to/your/projects:/workspace \
+  ghcr.io/hrrodan/agent-workspace-mcp:latest
+```
+
+This creates a fully **air-gapped sandbox** — only the loopback interface exists inside the container. All outbound connections (`curl`, DNS, `uv add`, etc.) will fail immediately, eliminating data exfiltration and lateral movement risks entirely.
+
+> [!NOTE]
+> With `--network none`, the agent cannot install packages at runtime. All dependencies must be pre-installed in a custom image or pre-populated in the mounted workspace volume.
 
 ---
 
