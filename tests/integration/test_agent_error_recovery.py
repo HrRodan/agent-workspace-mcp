@@ -1,5 +1,4 @@
 import os
-import asyncio
 import pytest
 from pathlib import Path
 from dotenv import load_dotenv
@@ -93,7 +92,6 @@ if __name__ == "__main__":
     # 1. Ensure docker image is built: docker build -t agent-workspace-mcp .
     # 2. Set OPENROUTER_API_KEY
     # 3. python tests/integration/test_agent_error_recovery.py
-    import sys
     from pathlib import Path
     
     # Simple mock for agent_workspace fixture if run as script

@@ -1,5 +1,4 @@
 import os
-import asyncio
 import pytest
 from pathlib import Path
 from dotenv import load_dotenv

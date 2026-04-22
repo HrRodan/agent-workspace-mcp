@@ -1,4 +1,3 @@
-import pytest
 from agent_workspace_mcp.tools.validation import validate_syntax
 
 def test_validate_python_valid():

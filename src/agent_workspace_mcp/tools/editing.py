@@ -9,7 +9,6 @@ from pydantic import Field
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.utils import security
-from agent_workspace_mcp.tools.execution import run_bash
 from agent_workspace_mcp.tools import _logging, validation
 
 logger = logging.getLogger(__name__)
