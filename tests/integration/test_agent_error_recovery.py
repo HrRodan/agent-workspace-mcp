@@ -75,7 +75,6 @@ async def test_agent_tool_error_recovery(agent_workspace: Path):
     # 4. Run the Agent
     mission = (
         "Tell me the password stored in 'secret.txt'. "
-        "I might have misremembered the exact filename, so please look around if you can't find it."
     )
 
     with trace("MCP-Error-Recovery-Workflow"):
