@@ -49,7 +49,7 @@ mcp.tool(annotations={"readOnlyHint": True})(filesystem.list_directory)
 mcp.tool(annotations={"readOnlyHint": True})(filesystem.search_workspace)
 
 # Execution tools
-mcp.tool()(execution.run_bash)
+mcp.tool(annotations={"destructiveHint": True})(execution.run_bash)
 
 # Editing tools
 mcp.tool(annotations={"destructiveHint": True})(editing.search_and_replace)
