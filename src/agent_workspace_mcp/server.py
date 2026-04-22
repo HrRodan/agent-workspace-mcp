@@ -8,8 +8,8 @@ from mcp.types import ToolAnnotations
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools import filesystem, execution, editing
 
-# Server version should match pyproject.toml
-__version__ = "1.2.0"
+from agent_workspace_mcp import __version__
+
 
 
 # Redirect stdout to stderr to prevent any accidental prints from corrupting the JSON-RPC stream.

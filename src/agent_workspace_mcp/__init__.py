@@ -1,3 +1,9 @@
 """Agent Workspace MCP: A sandboxed agentic workspace for LLMs."""
 
-__version__ = "1.0.0"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("agent-workspace-mcp")
+except PackageNotFoundError:
+    __version__ = "0.0.0-dev"
+
