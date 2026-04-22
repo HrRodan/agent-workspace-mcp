@@ -1,4 +1,5 @@
 import pytest
+from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.tools.execution import run_bash
 
 
@@ -24,8 +25,9 @@ async def test_run_bash_failure(workspace, mock_ctx):
 @pytest.mark.asyncio
 async def test_run_bash_timeout(workspace, mock_ctx):
     # Test timeout with sleep
-    result = await run_bash("sleep 2", timeout=1, ctx=mock_ctx)
-    assert "timed out after 1s" in result
+    with pytest.raises(ToolError) as excinfo:
+        await run_bash("sleep 2", timeout=1, ctx=mock_ctx)
+    assert "timed out after 1s" in str(excinfo.value)
     mock_ctx.error.assert_called()
 
 
@@ -37,6 +39,3 @@ async def test_run_bash_truncation(workspace, mock_ctx):
     assert "[Exit code: 0]" in result
     assert len(result) < 65000  # Including header
     assert "output truncated at 50KB" in result
-
-
-

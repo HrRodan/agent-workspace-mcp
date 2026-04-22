@@ -1,5 +1,6 @@
 import pytest
 import logging
+from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.tools.filesystem import read_file, write_file
 from agent_workspace_mcp.tools.execution import run_bash
 from agent_workspace_mcp.tools.editing import search_and_replace
@@ -59,7 +60,8 @@ async def test_error_logging_integration(workspace, mock_ctx, caplog):
     caplog.set_level(logging.INFO)
     
     # Trigger a filesystem error (file not found)
-    await read_file("non_existent.txt", ctx=mock_ctx)
+    with pytest.raises(ToolError):
+        await read_file("non_existent.txt", ctx=mock_ctx)
     
     # Entry log should still be there
     assert "TOOL_CALL read_file(filepath='non_existent.txt'" in caplog.text
@@ -67,7 +69,7 @@ async def test_error_logging_integration(workspace, mock_ctx, caplog):
     assert "TOOL_DONE read_file [FAIL]" in caplog.text
     # Output matches summary, so snippet should be suppressed
     assert "Output snippet" not in caplog.text
-    assert "ERROR: File 'non_existent.txt' not found" in caplog.text
+    assert "File 'non_existent.txt' not found" in caplog.text
     
     # Verify log level is WARNING for the failure
     found_fail = False

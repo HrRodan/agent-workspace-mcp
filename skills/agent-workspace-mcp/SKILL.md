@@ -17,49 +17,31 @@ When you have access to this MCP server, you MUST adhere to the following rules 
 - **Python & Packages (`uv` is MANDATORY):** Standard `python` and `pip` commands are NOT available. You MUST use `uv` for all Python management:
   - Run scripts: `uv run script.py`
   - Install dependencies: `uv add <package>`
-  - Install global CLI tools: `uv tool install <package>` (e.g., ruff, pytest)
-  - Execute tools: `uvx <tool>` (e.g., `uvx ruff check .`)
   - Create new projects: `uv init`
-  - Sync environments: `uv sync`
-- **Timeouts & Limits:** 
-  - Bash commands timeout after 60 seconds by default.
-  - Bash output is truncated at 50KB. Use `head`, `tail`, or `grep` for large outputs.
-  - File reads (`read_file`) are limited to 1MB. By default, it reads 100 lines. Use `offset` and `limit` to paginate.
-  - File writes (`write_file`) are limited to 5MB and will fail if the file already exists unless `create_only=False` is passed.
+  - Execute tools: `uvx <tool>` (e.g., `uvx ruff check .`)
+- **Error Handling:** Tools raise `ToolError` on failure. If you receive an error, analyze the message and use discovery tools (`list_directory`, `read_file`) to fix your assumptions.
 
 ## 🛠️ Available Tools
 
 ### Filesystem Operations
-- **`list_directory(path)`**: Lists files `[F]` and directories `[D]`. Automatically excludes noise like `.git` and `.venv`.
-- **`search_workspace(pattern, exclude_patterns)`**: Find files by glob (e.g., `src/**/*.py`). Note: For deep text/content search, prefer `run_bash("grep -rn ...")`.
+- **`list_directory(path)`**: Lists files `[F]` and directories `[D]`. Excludes noise like `.git`, `.venv`.
+- **`search_workspace(pattern, exclude_patterns)`**: Find files by glob.
 - **`read_file(filepath, offset, limit)`**: Read file contents safely. 
-- **`write_file(filepath, content, create_only)`**: Create a new file with **automatic syntax validation** (for `.py`, `.json`, `.jsonl`, `.toml`, `.yaml`).
-  - **Overwrite Protection:** By default, it will FAIL if the file exists. To overwrite, you MUST explicitly pass `create_only=False`.
-  - **Size Guard:** Enforces a 5MB maximum write size.
-  - Creates missing parent directories automatically.
+  - **Pagination:** Default limit is 100 lines. Use `offset`/`limit` for large files.
+- **`write_file(filepath, content, create_only)`**: Create a new file with **syntax validation** (Python, JSON, YAML, TOML).
+  - **Overwrite Protection:** Fails if file exists unless `create_only=False`.
 
 ### Code Editing (Precision Tools)
-- **`search_and_replace(filepath, edits, dry_run)`**: Your primary tool for modifying existing files.
+- **`search_and_replace(filepath, edits, dry_run)`**: **PRIMARY TOOL** for modifying existing files.
   - Takes a list of edits: `[{"old": "exact text", "new": "replacement text"}]`.
-  - **Fuzzy Whitespace Fallback:** If exact match fails, it automatically attempts to match ignoring leading/trailing whitespace and preserves relative indentation!
-  - **Auto-Validation:** Automatically validates syntax for `.py`, `.json`, `.jsonl`, `.toml`, and `.yaml` files before saving to prevent corrupting the file.
-  - **Best Practice:** Always read the file first (`read_file`) to ensure your `"old"` text is accurate and unique. If it fails due to multiple matches, include more surrounding lines in `"old"`.
+  - **Fuzzy Whitespace Fallback:** If exact match fails, it ignores whitespace and preserves relative indentation!
+  - **Auto-Validation:** Validates syntax before saving.
+  - **Best Practice:** `read_file` first to get exact whitespace for `old` text.
 
 ### Execution
-- **`run_bash(command, timeout)`**: Execute shell commands. Supports pipes, redirects, `&&`, etc. 
-  - Remember to explicitly increase the `timeout` parameter if you are running long builds, large downloads, or comprehensive test suites.
-
-### Token-Efficient Bash Utilities
-To optimize context window usage, prefer these pre-installed tools when using `run_bash`:
-- **`tree`**: Generates a visual directory structure map. Extremely useful for context gathering when constrained with depth flags (e.g., `tree -L 2 -I ".venv|.git"`).
-- **`fd` (fd-find)**: A fast, user-friendly alternative to `find` that automatically ignores `.git` and `.gitignore` contents.
-- **`rg` (ripgrep)**: The fastest tool for searching codebase contents for specific strings or regex patterns; respects `.gitignore` by default.
-- **`jq`**: Command-line JSON processor. Perfect for extracting specific fields from configuration files (like `package.json` or `server.json`) without writing custom Python scripts.
-- **`curl`**: Essential for downloading external datasets, testing API endpoints, or fetching remote scripts.
-- **`git`**: Core version control functionality for cloning repositories, checking out branches, and managing patches.
-- **`patch`**: Standard utility for applying unified diffs or `.patch` files manually via `run_bash` (e.g., `patch -p1 < file.patch`).
-- **`zip` / `unzip` / `tar`**: For managing archives.
-- **`procps` (`ps`, `kill`, `pkill`)**: For process management.
+- **`run_bash(command, timeout)`**: Execute shell commands.
+  - Includes: `tree`, `fd`, `rg`, `jq`, `curl`, `git`, `patch`, `zip/unzip`.
+  - Defaults to 60s timeout and 50KB output truncation.
 
 ## 💡 Best Practices & Workflows
 1. **Investigate First:** Always use `list_directory` or `search_workspace` to understand the project structure before writing code.

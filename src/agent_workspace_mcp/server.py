@@ -3,9 +3,13 @@ import sys
 import io
 from logging.handlers import RotatingFileHandler
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools import filesystem, execution, editing
+
+# Server version should match pyproject.toml
+__version__ = "1.2.0"
 
 
 # Redirect stdout to stderr to prevent any accidental prints from corrupting the JSON-RPC stream.
@@ -32,27 +36,56 @@ sys.stdout = StdoutRedirector(sys.stdout)
 
 # Initialize FastMCP server
 mcp = FastMCP(
-    "Agent Workspace MCP",
+    "Agent Workspace",
+    version=__version__,
     instructions=(
-        "You are operating inside a sandboxed Linux workspace at /workspace. "
-        "Always use read_file before search_and_replace to ensure exact whitespace matching. "
-        "For new projects, use run_bash('uv init') then uv add for dependencies. "
-        "For single scripts, use PEP 723 inline metadata with uv run."
+        "Sandboxed Linux workspace at /workspace. "
+        "read_file before search_and_replace for exact whitespace. "
+        "Python: uv only (uv init, uv add, uv run). No python/pip."
     ),
 )
 
-# Register tools explicitly
+# Register tools with explicit annotations for better LLM routing
 # Filesystem tools
-mcp.tool(annotations={"readOnlyHint": True})(filesystem.read_file)
-mcp.tool(annotations={"destructiveHint": True, "idempotentHint": True})(filesystem.write_file)
-mcp.tool(annotations={"readOnlyHint": True})(filesystem.list_directory)
-mcp.tool(annotations={"readOnlyHint": True})(filesystem.search_workspace)
+mcp.tool(annotations=ToolAnnotations(
+    title="Read File",
+    readOnlyHint=True,
+    openWorldHint=False,
+))(filesystem.read_file)
+
+mcp.tool(annotations=ToolAnnotations(
+    title="Write File",
+    destructiveHint=True,
+    idempotentHint=True,
+    openWorldHint=False,
+))(filesystem.write_file)
+
+mcp.tool(annotations=ToolAnnotations(
+    title="List Directory",
+    readOnlyHint=True,
+    openWorldHint=False,
+))(filesystem.list_directory)
+
+mcp.tool(annotations=ToolAnnotations(
+    title="Search Workspace",
+    readOnlyHint=True,
+    openWorldHint=False,
+))(filesystem.search_workspace)
 
 # Execution tools
-mcp.tool(annotations={"destructiveHint": True})(execution.run_bash)
+mcp.tool(annotations=ToolAnnotations(
+    title="Run Shell Command",
+    destructiveHint=True,
+    openWorldHint=True,
+))(execution.run_bash)
 
 # Editing tools
-mcp.tool(annotations={"destructiveHint": True})(editing.search_and_replace)
+mcp.tool(annotations=ToolAnnotations(
+    title="Search and Replace",
+    destructiveHint=True,
+    idempotentHint=True,
+    openWorldHint=False,
+))(editing.search_and_replace)
 
 
 def setup_logging() -> None:

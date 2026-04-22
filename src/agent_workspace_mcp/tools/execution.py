@@ -7,6 +7,7 @@ import logging
 from typing import Annotated
 from pydantic import Field
 from fastmcp import Context
+from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools import _logging
 
@@ -17,42 +18,26 @@ async def run_bash(
     command: Annotated[
         str,
         Field(
-            description=(
-                "The shell command to execute. "
-                "All Python operations MUST use `uv` (see tool description)."
-            )
+            description="Shell command to execute."
         ),
     ],
     timeout: Annotated[
         int,
         Field(
-            description=(
-                "Max seconds before the command is killed. "
-                "Default: 60s. Increase for long builds or large downloads."
-            )
+            description="Max seconds before kill. Increase for long builds."
         ),
     ] = None,
     ctx: Context = None,
 ) -> str:
-    """Execute a shell command in the sandboxed /workspace directory.
+    """Run a shell command in /workspace. Returns [Exit code: N] + merged stdout/stderr, truncated at 50KB.
 
-    Environment:
-    - Working directory: /workspace (all relative paths resolve here).
-    - Shell: /bin/sh. Supports pipes, redirects, &&, ||, etc.
-    - Available commands: standard bash e.g. curl, git, jq, patch, tree, fd-find (fd), ripgrep (rg), procps (ps, kill, pkill), zip, unzip, tar, ...
-    - Output: Returns "[Exit code: N]" followed by merged stdout+stderr.
-      Output is truncated at 50 KB — use `head`, `tail`, or `grep` for large outputs.
-    - Timeout: The process is killed after `timeout` seconds (default 60s).
+    Tools: curl, git, jq, patch, tree, fd, rg, zip, tar and standard coreutils. Supports pipes, redirects, &&, ||.
 
-    Python & Dependency Management (CRITICAL — uv only):
-    - Run a script:        `uv run script.py`       (NOT `python script.py`)
-    - Add a dependency:    `uv add <pkg>`            (NOT `pip install`)
-    - Remove a dependency: `uv remove <pkg>`
-    - Install a CLI tool:  `uv tool install <pkg>`   (NOT `pipx`)
-    - Run a one-off tool:  `uvx <tool>`              (e.g., `uvx ruff check .`)
-    - Init a new project:  `uv init`
-    - Sync environment:    `uv sync`
-    `python` and `pip` are NOT available. Always use `uv`.
+    Python/packages (uv only — no python/pip):
+      uv run script.py     Run scripts (auto-installs deps from imports)
+      uv add/remove <pkg>  Manage project dependencies
+      uv init              Scaffold new project with pyproject.toml
+      uvx <tool>           Run CLI tools without install (e.g. uvx ruff check .)
     """
     if timeout is None:
         timeout = security.COMMAND_TIMEOUT
@@ -115,19 +100,21 @@ async def run_bash(
             except ProcessLookupError:
                 pass
 
-            error_msg = f"ERROR: Command timed out after {timeout}s. The process was killed. Simplify the command or increase timeout."
+            error_msg = f"Command timed out after {timeout}s. The process was killed. Simplify the command or increase timeout."
             _logging.log_tool_exit(logger, "run_bash", start_time, success=False, summary="Timeout", output=error_msg)
             if ctx:
                 await ctx.error(error_msg)
-            return error_msg
+            raise ToolError(error_msg)
 
+    except ToolError:
+        raise
     except Exception as e:
-        error_msg = f"ERROR: Failed to execute command: {str(e)}"
+        error_msg = f"Failed to execute command: {str(e)}"
         if "start_time" in locals():
             _logging.log_tool_exit(logger, "run_bash", start_time, success=False, summary=str(e), output=error_msg)
         if ctx:
             await ctx.error(error_msg)
-        return error_msg
+        raise ToolError(error_msg)
 
 
 

@@ -1,4 +1,5 @@
 import pytest
+from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.tools.filesystem import (
     read_file,
     write_file,
@@ -27,8 +28,9 @@ async def test_read_file(workspace, mock_ctx):
 
 @pytest.mark.asyncio
 async def test_read_file_not_found(workspace, mock_ctx):
-    content = await read_file("missing.txt", mock_ctx)
-    assert "ERROR: File 'missing.txt' not found" in content
+    with pytest.raises(ToolError) as excinfo:
+        await read_file("missing.txt", mock_ctx)
+    assert "File 'missing.txt' not found" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -36,8 +38,9 @@ async def test_read_file_binary(workspace, mock_ctx):
     bin_file = workspace / "test.bin"
     bin_file.write_bytes(b"\x00\x01\x02")
 
-    content = await read_file("test.bin", mock_ctx)
-    assert "appears to be binary" in content
+    with pytest.raises(ToolError) as excinfo:
+        await read_file("test.bin", mock_ctx)
+    assert "appears to be binary" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -47,8 +50,9 @@ async def test_read_file_too_large(workspace, mock_ctx, monkeypatch):
 
     test_file.write_text("too long")
 
-    content = await read_file("large.txt", mock_ctx)
-    assert "exceeds MAX_READ_SIZE_BYTES" in content
+    with pytest.raises(ToolError) as excinfo:
+        await read_file("large.txt", mock_ctx)
+    assert "exceeds MAX_READ_SIZE_BYTES" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -61,8 +65,9 @@ async def test_write_file(workspace, mock_ctx):
 @pytest.mark.asyncio
 async def test_write_file_create_only_blocks_overwrite(workspace, mock_ctx):
     (workspace / "existing.txt").write_text("old")
-    result = await write_file("existing.txt", "new", mock_ctx)
-    assert "already exists" in result
+    with pytest.raises(ToolError) as excinfo:
+        await write_file("existing.txt", "new", mock_ctx)
+    assert "already exists" in str(excinfo.value)
     assert (workspace / "existing.txt").read_text() == "old"
 
 
@@ -77,16 +82,18 @@ async def test_write_file_overwrite_allowed(workspace, mock_ctx):
 @pytest.mark.asyncio
 async def test_write_file_size_guard(workspace, mock_ctx, monkeypatch):
     monkeypatch.setattr("agent_workspace_mcp.utils.security.MAX_WRITE_SIZE_BYTES", 5)
-    result = await write_file("too_large.txt", "123456", mock_ctx)
-    assert "exceeds MAX_WRITE_SIZE_BYTES" in result
+    with pytest.raises(ToolError) as excinfo:
+        await write_file("too_large.txt", "123456", mock_ctx)
+    assert "exceeds MAX_WRITE_SIZE_BYTES" in str(excinfo.value)
     assert not (workspace / "too_large.txt").exists()
 
 
 @pytest.mark.asyncio
 async def test_write_file_validates_syntax(workspace, mock_ctx):
     # Invalid python
-    result = await write_file("bad.py", "def foo(:", mock_ctx)
-    assert "Python syntax error" in result
+    with pytest.raises(ToolError) as excinfo:
+        await write_file("bad.py", "def foo(:", mock_ctx)
+    assert "Python syntax error" in str(excinfo.value)
     assert not (workspace / "bad.py").exists()
 
     # Valid python
@@ -98,8 +105,9 @@ async def test_write_file_validates_syntax(workspace, mock_ctx):
 @pytest.mark.asyncio
 async def test_write_file_validates_jsonl(workspace, mock_ctx):
     content = '{"a": 1}\n{"b": 2' # Missing bracket on line 2
-    result = await write_file("bad.jsonl", content, mock_ctx)
-    assert "JSONL parse error at line 2" in result
+    with pytest.raises(ToolError) as excinfo:
+        await write_file("bad.jsonl", content, mock_ctx)
+    assert "JSONL parse error at line 2" in str(excinfo.value)
     assert not (workspace / "bad.jsonl").exists()
 
 
@@ -117,8 +125,9 @@ async def test_list_directory(workspace, mock_ctx):
 
 @pytest.mark.asyncio
 async def test_list_directory_not_found(workspace, mock_ctx):
-    result = await list_directory("missing", mock_ctx)
-    assert "ERROR" in result
+    with pytest.raises(ToolError) as excinfo:
+        await list_directory("missing", mock_ctx)
+    assert "Path 'missing' not found" in str(excinfo.value)
 
 
 
@@ -183,6 +192,6 @@ async def test_search_workspace_truncated(workspace, mock_ctx, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_search_workspace_traversal_blocked(workspace, mock_ctx):
-    result = await search_workspace("../../**/*.py", mock_ctx)
-    assert "ERROR" in result
-    assert "Path traversal or absolute paths are not allowed" in result
+    with pytest.raises(ToolError) as excinfo:
+        await search_workspace("../../**/*.py", mock_ctx)
+    assert "Path traversal or absolute paths are not allowed" in str(excinfo.value)

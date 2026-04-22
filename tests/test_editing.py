@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.tools.editing import search_and_replace
 
 
@@ -38,11 +38,11 @@ async def test_search_and_replace_dry_run(workspace, mock_ctx):
 async def test_search_and_replace_syntax_error(workspace, mock_ctx):
     test_file = workspace / "test.py"
     test_file.write_text("def hello():\n    print('hello')\n")
-
+    
     edits = [{"old": "print('hello')", "new": "print('world') +"}]
-    result = await search_and_replace("test.py", edits, ctx=mock_ctx)
-
-    assert "ERROR: Python syntax error" in result
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("test.py", edits, ctx=mock_ctx)
+    assert "Python syntax error" in str(excinfo.value)
     # Original file should be untouched
     assert "print('hello')" in test_file.read_text()
 
@@ -51,21 +51,23 @@ async def test_search_and_replace_syntax_error(workspace, mock_ctx):
 async def test_search_and_replace_not_found(workspace, mock_ctx):
     test_file = workspace / "test.py"
     test_file.write_text("hello")
-
-    result = await search_and_replace("test.py", [{"old": "missing", "new": "r"}], ctx=mock_ctx)
-    assert "ERROR: Edit 0" in result
-    assert "not found" in result
+    
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("test.py", [{"old": "missing", "new": "r"}], ctx=mock_ctx)
+    assert "Edit 0" in str(excinfo.value)
+    assert "not found" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
 async def test_search_and_replace_yaml(workspace, mock_ctx):
     test_file = workspace / "test.yaml"
     test_file.write_text("key: value\n")
-
+    
     # Invalid YAML edit
     edits = [{"old": "value", "new": "value:\n  nested: invalid:"}]
-    result = await search_and_replace("test.yaml", edits, ctx=mock_ctx)
-    assert "ERROR: YAML parse error" in result
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("test.yaml", edits, ctx=mock_ctx)
+    assert "YAML parse error" in str(excinfo.value)
 
     # Valid YAML edit
     edits = [{"old": "value", "new": "new_value"}]
@@ -122,13 +124,12 @@ async def test_search_and_replace_fuzzy_indent_preservation(workspace, mock_ctx)
 async def test_search_and_replace_fuzzy_ambiguous(workspace, mock_ctx):
     test_file = workspace / "test.txt"
     test_file.write_text("item\nitem\n")
-
+    
     # 'item' matches twice fuzzily
     edits = [{"old": "  item  ", "new": "new"}]
-    result = await search_and_replace("test.txt", edits, ctx=mock_ctx)
-
-    assert "ERROR" in result
-    assert "Found 2 fuzzy matches" in result
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("test.txt", edits, ctx=mock_ctx)
+    assert "Found 2 fuzzy matches" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -197,9 +198,8 @@ async def test_search_and_replace_indent_tabs(workspace, mock_ctx):
 async def test_search_and_replace_empty_old(workspace, mock_ctx):
     test_file = workspace / "test.txt"
     test_file.write_text("content")
-
+    
     edits = [{"old": "", "new": "prefix\n"}]
-    result = await search_and_replace("test.txt", edits, ctx=mock_ctx)
-
-    assert "ERROR" in result
-    assert "empty 'old' text" in result
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("test.txt", edits, ctx=mock_ctx)
+    assert "empty 'old' text" in str(excinfo.value)

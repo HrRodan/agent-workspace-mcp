@@ -5,6 +5,7 @@ import logging
 from typing import Annotated
 from pydantic import Field
 from fastmcp import Context
+from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools import _logging, validation
 
@@ -13,21 +14,17 @@ logger = logging.getLogger(__name__)
 
 async def read_file(
     filepath: Annotated[
-        str, Field(description="Path to the file, relative to /workspace.")
+        str, Field(description="File path relative to /workspace.")
     ],
     offset: Annotated[
-        int, Field(description="Line offset to start reading from (0-based).")
+        int, Field(description="Start line (0-based).")
     ] = 0,
     limit: Annotated[
-        int, Field(description="Max lines to return. Default: 100.")
+        int, Field(description="Max lines to return.")
     ] = 100,
     ctx: Context = None,
 ) -> str:
-    """Read a text file.
-
-    Text only, max 1MB. Returns first 100 lines by default.
-    For larger files or specific segments, use offset/limit or bash (grep/head/tail).
-    """
+    """Read a text file. Text only, max 1MB, returns first 100 lines. Use offset/limit for segments or run_bash('grep/head/tail') for large files."""
     try:
         path = security.safe_path(filepath)
         start_time = _logging.log_tool_entry(logger, "read_file", filepath=filepath, offset=offset, limit=limit)
@@ -35,28 +32,28 @@ async def read_file(
             await ctx.info(f"Reading file: {filepath}")
 
         if not path.exists():
-            res = f"ERROR: File '{filepath}' not found. Use list_directory() to discover available files."
+            res = f"File '{filepath}' not found. Use list_directory() to discover available files."
             _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
 
         if path.is_dir():
-            res = f"ERROR: '{filepath}' is a directory. Use list_directory() to see its contents."
+            res = f"'{filepath}' is a directory. Use list_directory() to see its contents."
             _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
 
         if security.is_binary(path):
-            res = f"ERROR: File '{filepath}' appears to be binary. read_file only supports text files."
+            res = f"File '{filepath}' appears to be binary. read_file only supports text files."
             _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
 
         file_size = path.stat().st_size
         if file_size > security.MAX_READ_SIZE_BYTES:
             res = (
-                f"ERROR: File '{filepath}' ({file_size} bytes) exceeds MAX_READ_SIZE_BYTES "
+                f"File '{filepath}' ({file_size} bytes) exceeds MAX_READ_SIZE_BYTES "
                 f"({security.MAX_READ_SIZE_BYTES}). Use shell commands like 'head' or 'grep' to process it."
             )
             _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
 
         # Use errors="replace" to avoid crashing on invalid UTF-8 sequences in text files
         content = path.read_text(encoding="utf-8", errors="replace")
@@ -73,33 +70,31 @@ async def read_file(
         _logging.log_tool_exit(logger, "read_file", start_time, success=True, summary=f"{len(lines)} lines returned", output=result)
         return result
 
+    except ToolError:
+        raise
     except Exception as e:
         if "start_time" in locals():
             _logging.log_tool_exit(logger, "read_file", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"Failed to read {filepath}: {str(e)}")
-        return f"ERROR: {str(e)}"
+        raise ToolError(f"Error reading file: {str(e)}")
 
 
 async def write_file(
     filepath: Annotated[
-        str, Field(description="Path to the file, relative to /workspace.")
+        str, Field(description="File path relative to /workspace.")
     ],
     content: Annotated[
         str,
-        Field(description="The complete file content to write."),
+        Field(description="Complete file content."),
     ],
     create_only: Annotated[
         bool,
-        Field(description="If True, fail if file already exists. Set to False to allow overwriting."),
+        Field(description="If true, fail when file exists."),
     ] = True,
     ctx: Context = None,
 ) -> str:
-    """Create a new file or optionally overwrite an existing one.
-
-    Creates parent directories if needed. For partial edits, prefer search_and_replace.
-    Refuses to overwrite by default (create_only=True).
-    """
+    """Create or overwrite a file. Creates parent dirs. For partial edits use search_and_replace. Validates .py/.json/.toml/.yaml syntax before writing."""
     try:
         path = security.safe_path(filepath)
         start_time = _logging.log_tool_entry(logger, "write_file", filepath=filepath, content_len=len(content), create_only=create_only)
@@ -110,17 +105,17 @@ async def write_file(
         content_bytes = content.encode("utf-8")
         if len(content_bytes) > security.MAX_WRITE_SIZE_BYTES:
             res = (
-                f"ERROR: Content ({len(content_bytes)} bytes) exceeds MAX_WRITE_SIZE_BYTES "
+                f"Content ({len(content_bytes)} bytes) exceeds MAX_WRITE_SIZE_BYTES "
                 f"({security.MAX_WRITE_SIZE_BYTES})."
             )
             _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
 
         # 2. Overwrite protection
         if create_only and path.exists():
-            res = f"ERROR: File '{filepath}' already exists and create_only=True."
+            res = f"File '{filepath}' already exists and create_only=True."
             _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
 
         # 3. Ensure parent directories exist
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -134,9 +129,8 @@ async def write_file(
             syntax_error = validation.validate_syntax(content, filepath)
             if syntax_error:
                 temp_path.unlink(missing_ok=True)
-                res = f"ERROR: {syntax_error} File was NOT written."
-                _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=syntax_error, output=res)
-                return res
+                _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=syntax_error, output=syntax_error)
+                raise ToolError(f"{syntax_error} File was NOT written.")
 
             os.replace(temp_path, path)
         finally:
@@ -148,25 +142,24 @@ async def write_file(
         _logging.log_tool_exit(logger, "write_file", start_time, success=True, summary=res_msg, output=res_msg)
         return res_msg
 
+    except ToolError:
+        raise
     except Exception as e:
         if "start_time" in locals():
             _logging.log_tool_exit(logger, "write_file", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"Failed to write to {filepath}: {str(e)}")
-        return f"ERROR: {str(e)}"
+        raise ToolError(f"Error writing file: {str(e)}")
 
 
 async def list_directory(
     path: Annotated[
         str,
-        Field(description="Directory path, relative to /workspace. Default: '.'"),
+        Field(description="Directory path relative to /workspace."),
     ] = ".",
     ctx: Context = None,
 ) -> str:
-    """List files and directories. Returns [F] or [D] prefix.
-
-    Excludes .git, .venv, etc. by default.
-    """
+    """List directory contents. Returns [F]/[D] prefixed entries. Excludes .git, .venv, __pycache__."""
     try:
         abs_path = security.safe_path(path)
         start_time = _logging.log_tool_entry(logger, "list_directory", path=path)
@@ -174,13 +167,14 @@ async def list_directory(
             await ctx.info(f"Listing directory: {path}")
 
         if not abs_path.exists():
-            res = f"ERROR: Path '{path}' not found."
+            res = f"Path '{path}' not found."
             _logging.log_tool_exit(logger, "list_directory", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
         if not abs_path.is_dir():
-            res = f"ERROR: '{path}' is not a directory."
+            res = f"'{path}' is not a directory."
             _logging.log_tool_exit(logger, "list_directory", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
+
 
         entries = []
         for item in abs_path.iterdir():
@@ -198,33 +192,28 @@ async def list_directory(
         _logging.log_tool_exit(logger, "list_directory", start_time, success=True, summary=f"{len(entries)} entries", output=result)
         return result
 
+    except ToolError:
+        raise
     except Exception as e:
         if "start_time" in locals():
             _logging.log_tool_exit(logger, "list_directory", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"List directory failed: {str(e)}")
-        return f"ERROR: {str(e)}"
-
-
-
-
+        raise ToolError(f"Error listing directory: {str(e)}")
 
 
 async def search_workspace(
     pattern: Annotated[
         str,
-        Field(description="Glob pattern for paths (e.g. 'src/**/*.py')."),
+        Field(description="Glob pattern (e.g. 'src/**/*.py')."),
     ],
     exclude_patterns: Annotated[
         list[str],
-        Field(description="Additional glob patterns to exclude."),
+        Field(description="Glob patterns to exclude."),
     ] = [],
     ctx: Context = None,
 ) -> str:
-    """Find files by glob pattern (name/path only).
-
-    Returns up to 50 paths. For content search use `run_bash('grep -rn ...')`.
-    """
+    """Find files by glob pattern. Returns up to 50 paths. For content search use run_bash with grep."""
     try:
         security.validate_glob_pattern(pattern)
         
@@ -293,4 +282,4 @@ async def search_workspace(
             _logging.log_tool_exit(logger, "search_workspace", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"Search failed: {str(e)}")
-        return f"ERROR: {str(e)}"
+        raise ToolError(f"Search failed: {str(e)}")

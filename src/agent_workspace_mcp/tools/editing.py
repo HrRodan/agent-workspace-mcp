@@ -7,6 +7,7 @@ import logging
 from typing import Annotated
 from pydantic import Field
 from fastmcp import Context
+from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools.execution import run_bash
 from agent_workspace_mcp.tools import _logging, validation
@@ -103,23 +104,20 @@ def _apply_with_indent_preservation(
 
 async def search_and_replace(
     filepath: Annotated[
-        str, Field(description="Path to the file, relative to /workspace.")
+        str, Field(description="File path relative to /workspace.")
     ],
     edits: Annotated[
         list[dict[str, str]],
         Field(
-            description='List of {"old": "search_text", "new": "replacement"} objects.'
+            description='[{"old": "exact_text", "new": "replacement"}]'
         ),
     ],
     dry_run: Annotated[
-        bool, Field(description="Preview changes as a diff without applying.")
+        bool, Field(description="Preview diff without applying.")
     ] = False,
     ctx: Context = None,
 ) -> str:
-    """Replace substrings in a file. Fallback to fuzzy whitespace matching if exact fails. Use this as primary tool to edit files.
-
-    Returns unified diff. Validates .py, .json, .jsonl, .toml, .yaml syntax after edits.
-    """
+    """Primary file editing tool — prefer over patch. Replaces substrings with fuzzy whitespace fallback. Returns unified diff. Validates .py/.json/.toml/.yaml syntax."""
     try:
         path = security.safe_path(filepath)
         start_time = _logging.log_tool_entry(logger, "search_and_replace", filepath=filepath, edit_count=len(edits), dry_run=dry_run)
@@ -127,9 +125,9 @@ async def search_and_replace(
             await ctx.info(f"Search and replace in: {filepath} ({len(edits)} edits)")
 
         if not path.exists():
-            res = f"ERROR: File '{filepath}' not found."
+            res = f"File '{filepath}' not found."
             _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-            return res
+            raise ToolError(res)
 
         # 1. Read content and normalize line endings for matching
         original_content = path.read_text(encoding="utf-8", errors="replace")
@@ -144,14 +142,14 @@ async def search_and_replace(
             old = edit.get("old")
             new = edit.get("new")
             if old is None or new is None:
-                res = f"ERROR: Edit {i} must contain 'old' and 'new' keys."
+                res = f"Edit {i} must contain 'old' and 'new' keys."
                 _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                return res
+                raise ToolError(res)
             
             if not old:
-                res = f"ERROR: Edit {i} has empty 'old' text. Insertion not supported via search_and_replace."
+                res = f"Edit {i} has empty 'old' text. Insertion not supported via search_and_replace."
                 _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                return res
+                raise ToolError(res)
 
             old_norm = _normalize_line_endings(old)
             new_norm = _normalize_line_endings(new)
@@ -162,9 +160,9 @@ async def search_and_replace(
                 current_content = current_content.replace(old_norm, new_norm, 1)
                 exact_count += 1
             elif count > 1:
-                res = f"ERROR: Edit {i} ('{old[:20]}...') found {count} times (exact match). Make it unique."
+                res = f"Edit {i} ('{old[:20]}...') found {count} times (exact match). Make it unique."
                 _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                return res
+                raise ToolError(res)
             else:
                 # Try fuzzy whitespace match fallback
                 content_lines = current_content.splitlines()
@@ -180,13 +178,13 @@ async def search_and_replace(
                         current_content = "\n".join(updated_lines)
                         fuzzy_count += 1
                     else:
-                        res = f"ERROR: Edit {i} ('{old[:20]}...') not found in '{filepath}' (tried exact and fuzzy matching)."
+                        res = f"Edit {i} ('{old[:20]}...') not found in '{filepath}' (tried exact and fuzzy matching)."
                         _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                        return res
+                        raise ToolError(res)
                 except ValueError as e:
-                    res = f"ERROR: Edit {i}: {str(e)}"
+                    res = f"Edit {i}: {str(e)}"
                     _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                    return res
+                    raise ToolError(res)
 
         # Restore final newline if it existed in original content
         if original_content.endswith("\n") and not current_content.endswith("\n"):
@@ -196,9 +194,8 @@ async def search_and_replace(
         if current_content != content:
             syntax_error = validation.validate_syntax(current_content, filepath)
             if syntax_error:
-                res = f"ERROR: {syntax_error}"
-                _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=res, output=res)
-                return res
+                _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=syntax_error, output=syntax_error)
+                raise ToolError(syntax_error)
 
         # 4. Generate diff (using 3 lines of context)
         diff = "".join(
@@ -230,9 +227,11 @@ async def search_and_replace(
             _logging.log_tool_exit(logger, "search_and_replace", start_time, success=True, summary=f"DRY RUN: {match_stats}", output=res_msg)
             return res_msg
 
+    except ToolError:
+        raise
     except Exception as e:
         if "start_time" in locals():
             _logging.log_tool_exit(logger, "search_and_replace", start_time, success=False, summary=str(e), output=str(e))
         if ctx:
             await ctx.error(f"Search and replace failed: {str(e)}")
-        return f"ERROR: {str(e)}"
+        raise ToolError(f"Search and replace failed: {str(e)}")

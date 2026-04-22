@@ -8,7 +8,7 @@
 
 Do **not** run integration tests under `/tests/integration` by default. They execute real LLM calls and incur costs.  
 
-- **`uv run pytest`**: Run ONLY the fast unit tests (default).
+- **`uv run pytest`**: Run ONLY the fast unit tests (default). Always run this first before running integration tests.
 
 Before running integration tests the Docker container has to be rebuild with **default values** for all arguments.
 

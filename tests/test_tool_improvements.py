@@ -1,4 +1,5 @@
 import pytest
+from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.tools.filesystem import (
     read_file,
     list_directory,
@@ -69,6 +70,7 @@ async def test_live_tool_workflow(workspace, mock_ctx):
 
     # Invalid YAML edit
     bad_edit = [{"old": "agent", "new": "agent:\n  broken: :"}]
-    yml_res = await search_and_replace("config.yaml", bad_edit, ctx=mock_ctx)
-    assert "ERROR: YAML parse error" in yml_res
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("config.yaml", bad_edit, ctx=mock_ctx)
+    assert "YAML parse error" in str(excinfo.value)
     assert config_yml.read_text() == "app: agent\n"  # Verify no write on error
