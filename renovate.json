@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:best-practices"
+    "config:best-practices",
+    ":dependencyDashboard"
   ],
   "labels": [
     "dependencies"
@@ -12,11 +13,14 @@
   ],
   "minimumReleaseAge": "3 days",
   "osvVulnerabilityAlerts": true,
+  "platformAutomerge": true,
+  "rebaseWhen": "behind-base-branch",
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
+    "automergeType": "pr",
     "schedule": [
-      "* 0-8 * * *"
+      "* 0-8 * * 1"
     ]
   },
   "vulnerabilityAlerts": {
@@ -31,7 +35,7 @@
       ],
       "matchCurrentVersion": "!/^0/",
       "automerge": true,
-      "automergeType": "branch"
+      "automergeType": "pr"
     },
     {
       "matchManagers": [
@@ -39,13 +43,18 @@
       ],
       "groupName": "github-actions",
       "automerge": true,
-      "automergeType": "branch"
+      "automergeType": "pr"
     },
     {
       "matchManagers": [
-        "pep621"
+        "pep621",
+        "uv"
       ],
-      "groupName": "python-deps"
+      "groupName": "python-deps",
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ]
     },
     {
       "matchManagers": [
@@ -66,7 +75,7 @@
       "matchManagers": [
         "dockerfile"
       ],
-      "groupName": "docker",
+      "groupName": "docker-images",
       "matchPackageNames": [
         "!python"
       ]
