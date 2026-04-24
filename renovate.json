@@ -7,9 +7,9 @@
   "labels": [
     "dependencies"
   ],
-  "timezone": "UTC",
+  "timezone": "Europe/Berlin",
   "schedule": [
-    "* 0-4 * * *"
+    "* 0-8 * * *"
   ],
   "minimumReleaseAge": "3 days",
   "osvVulnerabilityAlerts": true,
@@ -17,7 +17,7 @@
     "enabled": true,
     "automerge": true,
     "schedule": [
-      "* 0-4 * * *"
+      "* 0-8 * * *"
     ]
   },
   "vulnerabilityAlerts": {
