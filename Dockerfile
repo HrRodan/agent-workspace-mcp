@@ -18,26 +18,6 @@ SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
 COPY --from=uv_bin /uv /uvx /bin/
 
-# OCI & MCP metadata
-ARG VERSION="0.0.0-local"
-ARG REVISION="local"
-ARG CREATED="unknown"
-# Persist version for runtime retrieval without patching pyproject.toml
-ENV MCP_SERVER_VERSION=${VERSION}
-# Re-declare the global ARG within this stage to make it available for LABEL
-ARG BASE_IMAGE
-
-LABEL org.opencontainers.image.title="Agent Workspace MCP" \
-      org.opencontainers.image.description="Sandboxed agentic workspace MCP server for LLMs" \
-      org.opencontainers.image.url="https://github.com/HrRodan/agent-workspace-mcp" \
-      org.opencontainers.image.source="https://github.com/HrRodan/agent-workspace-mcp" \
-      org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.created="${CREATED}" \
-      org.opencontainers.image.base.name="${BASE_IMAGE}" \
-      io.modelcontextprotocol.server.name="io.github.HrRodan/agent-workspace-mcp"
-
 # Install minimal system utilities required by the agentic workspace
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -95,6 +75,26 @@ ENV UV_PROJECT_ENVIRONMENT=/workspace/.venv_container \
     PATH="/app/.venv/bin:$PATH"
 
 STOPSIGNAL SIGTERM
+
+# OCI & MCP metadata
+ARG VERSION="0.0.0-local"
+ARG REVISION="local"
+ARG CREATED="unknown"
+# Persist version for runtime retrieval without patching pyproject.toml
+ENV MCP_SERVER_VERSION=${VERSION}
+# Re-declare the global ARG within this stage to make it available for LABEL
+ARG BASE_IMAGE
+
+LABEL org.opencontainers.image.title="Agent Workspace MCP" \
+      org.opencontainers.image.description="Sandboxed agentic workspace MCP server for LLMs" \
+      org.opencontainers.image.url="https://github.com/HrRodan/agent-workspace-mcp" \
+      org.opencontainers.image.source="https://github.com/HrRodan/agent-workspace-mcp" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${CREATED}" \
+      org.opencontainers.image.base.name="${BASE_IMAGE}" \
+      io.modelcontextprotocol.server.name="io.github.HrRodan/agent-workspace-mcp"
 
 # Execute the server using its dedicated virtual environment
 ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]
