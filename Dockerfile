@@ -59,6 +59,11 @@ ARG GID=1000
 RUN groupadd -g "${GID}" mcpuser && useradd -u "${UID}" -g "${GID}" -m mcpuser
 
 # --- Application install ---
+# Pre-create directories with correct ownership (still root)
+RUN mkdir -p /app /workspace && chown mcpuser:mcpuser /app /workspace
+
+# Switch to non-root before any file operations
+USER mcpuser
 WORKDIR /app
 
 # UV_COMPILE_BYTECODE=1 speeds up startup
@@ -68,26 +73,21 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Copy dependency manifests first to maximize layer cache hits
-# uv.lock is explicitly kept out of .dockerignore
-COPY pyproject.toml uv.lock ./
+COPY --chown=mcpuser:mcpuser pyproject.toml uv.lock ./
 
 # Install dependencies (without the project itself)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev \
- && chown -R mcpuser:mcpuser /app/.venv
+RUN --mount=type=cache,target=/home/mcpuser/.cache/uv,uid=1000,gid=1000 \
+    uv sync --frozen --no-install-project --no-dev
 
 # Copy application source
-COPY README.md ./
-COPY src/ ./src/
+COPY --chown=mcpuser:mcpuser README.md ./
+COPY --chown=mcpuser:mcpuser src/ ./src/
 
 # Install the project server itself into the venv
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev \
- && chown -R mcpuser:mcpuser /app/.venv
+RUN --mount=type=cache,target=/home/mcpuser/.cache/uv,uid=1000,gid=1000 \
+    uv sync --frozen --no-dev
 
 # --- Workspace setup ---
-# Pre-create the /workspace directory with correct user ownership
-RUN mkdir -p /workspace && chown mcpuser:mcpuser /workspace
 WORKDIR /workspace
 
 # UV_PROJECT_ENVIRONMENT ensures agent processes use a local environment
@@ -95,8 +95,6 @@ ENV UV_PROJECT_ENVIRONMENT=/workspace/.venv_container \
     PATH="/app/.venv/bin:$PATH"
 
 STOPSIGNAL SIGTERM
-
-USER mcpuser
 
 # Execute the server using its dedicated virtual environment
 ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]

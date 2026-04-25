@@ -47,7 +47,7 @@ jobs:
       # Check out the repository with full history for version calculation
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ env.IS_MAIN == 'true' && '0' || '1' }}
 
       # Set up uv to allow detecting the current Python version
       - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v5
@@ -58,16 +58,23 @@ jobs:
       - name: Compute version metadata
         id: calc
         run: |
-          # 1. Extract the manual MAJOR.MINOR from pyproject.toml
-          BASE_VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2 | cut -d. -f1,2)
-          MAJOR_VERSION=$(echo "$BASE_VERSION" | cut -d. -f1)
-          
-          # 2. Find last version change
-          LAST_VERSION_COMMIT=$(git log -1 --format=%H -G "^version = " -- pyproject.toml || git rev-list --max-parents=0 HEAD)
-          
-          # 3. Count commits since that change
-          PATCH_COUNT=$(git rev-list --count $LAST_VERSION_COMMIT..HEAD)
-          FULL_VERSION="${BASE_VERSION}.${PATCH_COUNT}"
+          if [[ "$IS_MAIN" == "true" ]]; then
+            # 1. Extract the manual MAJOR.MINOR from pyproject.toml
+            BASE_VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2 | cut -d. -f1,2)
+            MAJOR_VERSION=$(echo "$BASE_VERSION" | cut -d. -f1)
+            
+            # 2. Find last version change
+            LAST_VERSION_COMMIT=$(git log -1 --format=%H -G "^version = " -- pyproject.toml || git rev-list --max-parents=0 HEAD)
+            
+            # 3. Count commits since that change
+            PATCH_COUNT=$(git rev-list --count $LAST_VERSION_COMMIT..HEAD)
+            FULL_VERSION="${BASE_VERSION}.${PATCH_COUNT}"
+          else
+            # PR builds: version metadata is not pushed, use placeholder
+            FULL_VERSION="0.0.0-pr"
+            BASE_VERSION="0.0"
+            MAJOR_VERSION="0"
+          fi
           
           # 4. Extract Python version
           PYTHON_FULL_VERSION=$(uv run python --version | cut -d' ' -f2)
@@ -124,8 +131,10 @@ jobs:
             VERSION=${{ steps.calc.outputs.version }}
             REVISION=${{ github.sha }}
             CREATED=${{ steps.calc.outputs.created }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha,scope=docker-${{ github.ref_name }}
+            type=gha,scope=docker-main
+          cache-to: type=gha,mode=max,scope=docker-${{ github.ref_name }}
 
       # Verify the image starts and responds to a JSON-RPC initialize request
       - name: Docker smoke test
@@ -138,14 +147,23 @@ jobs:
             agent-workspace-mcp:latest \
           | head -1 | grep '"jsonrpc":"2.0"'
 
-      # Tag the local image with registry tags and push to GHCR (only on main)
-      - name: Tag and Push Docker image
+      # Push all registry tags in a single operation (only on main)
+      - name: Push Docker image
         if: env.IS_MAIN == 'true'
-        run: |
-          echo '${{ steps.meta.outputs.tags }}' | while IFS= read -r tag; do
-            docker tag agent-workspace-mcp:latest "$tag"
-            docker push "$tag"
-          done
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.calc.outputs.version }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.calc.outputs.created }}
+          cache-from: |
+            type=gha,scope=docker-${{ github.ref_name }}
+            type=gha,scope=docker-main
+          cache-to: type=gha,mode=max,scope=docker-${{ github.ref_name }}
 
       # Update server.json with the new version and image identifier (only on main)
       - name: Sync server.json version
