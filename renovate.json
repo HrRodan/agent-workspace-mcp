@@ -30,56 +30,52 @@
   },
   "packageRules": [
     {
+      "description": "Automerge all minor, patch, and digest updates (including 0.x.x)",
       "matchUpdateTypes": [
         "minor",
-        "patch"
+        "patch",
+        "digest",
+        "pin"
       ],
-      "matchCurrentVersion": "!/^0/",
       "automerge": true,
       "automergeType": "pr"
     },
     {
+      "description": "Group GitHub Actions updates",
       "matchManagers": [
         "github-actions"
       ],
-      "groupName": "github-actions",
-      "automerge": true,
-      "automergeType": "pr"
+      "groupName": "github-actions"
     },
     {
+      "description": "Group Python dependency updates",
       "matchManagers": [
         "pep621",
         "uv"
       ],
-      "groupName": "python-deps",
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ]
+      "groupName": "python-deps"
     },
     {
+      "description": "Group Python core updates (Docker & .python-version)",
       "matchManagers": [
-        "python-version"
-      ],
-      "groupName": "python-core"
-    },
-    {
-      "matchManagers": [
+        "python-version",
         "dockerfile"
       ],
       "matchPackageNames": [
         "python"
       ],
-      "groupName": "python-core"
+      "groupName": "python-core",
+      "versioning": "pep440"
     },
     {
+      "description": "Group all other Docker images",
       "matchManagers": [
         "dockerfile"
       ],
-      "groupName": "docker-images",
       "matchPackageNames": [
         "!python"
-      ]
+      ],
+      "groupName": "docker-images"
     }
   ]
 }
