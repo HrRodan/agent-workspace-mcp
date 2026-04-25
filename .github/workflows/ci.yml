@@ -18,23 +18,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  metadata:
+  unit-tests:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.calc.outputs.version }}
-      base_version: ${{ steps.calc.outputs.base_version }}
-      major_version: ${{ steps.calc.outputs.major_version }}
-      created: ${{ steps.calc.outputs.created }}
-      python_version: ${{ steps.calc.outputs.python_version }}
-      python_full_version: ${{ steps.calc.outputs.python_full_version }}
     steps:
+      # Check out the repository source code
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
+
+      # Set up the uv package manager with caching enabled
       - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v5
         with:
           enable-cache: true
-      - id: calc
+
+      # Run unit tests using pytest, ignoring integration tests
+      - name: Run unit tests
+        run: uv run pytest tests/ --ignore=tests/integration/ -v
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      # Helper variable to determine if we are running on the main branch (excluding PRs)
+      IS_MAIN: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    steps:
+      # Check out the repository with full history for version calculation
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      # Set up uv to allow detecting the current Python version
+      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v5
+        with:
+          enable-cache: true
+
+      # Dynamically compute versions based on pyproject.toml and git history
+      - name: Compute version metadata
+        id: calc
         run: |
           # 1. Extract the manual MAJOR.MINOR from pyproject.toml
           BASE_VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2 | cut -d. -f1,2)
@@ -58,27 +80,44 @@ jobs:
           echo "python_version=python-$PYTHON_VERSION" >> $GITHUB_OUTPUT
           echo "python_full_version=python-$PYTHON_FULL_VERSION" >> $GITHUB_OUTPUT
 
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: uv sync
-      - name: Run unit tests
-        run: uv run pytest tests/ --ignore=tests/integration/ -v
-
-  docker-build:
-    runs-on: ubuntu-latest
-    needs: [unit-tests, metadata]
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      # Prepare Docker Buildx for building the image
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      # Log in to GitHub Container Registry (only on main)
+      - name: Log in to GHCR
+        if: env.IS_MAIN == 'true'
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Ensure the repository name is lowercase for Docker registry compatibility
+      - name: Lowercase Repository Name
+        id: repo
+        run: echo "name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      # Generate Docker tags and labels (only on main)
+      - name: Extract metadata (tags, labels) for Docker
+        if: env.IS_MAIN == 'true'
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+        with:
+          images: ghcr.io/${{ steps.repo.outputs.name }}
+          tags: |
+            type=raw,value=${{ steps.calc.outputs.version }}
+            type=raw,value=${{ steps.calc.outputs.base_version }}
+            type=raw,value=${{ steps.calc.outputs.major_version }}
+            type=raw,value=${{ steps.calc.outputs.python_version }}
+            type=raw,value=${{ steps.calc.outputs.python_full_version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Update pyproject.toml with the computed version for the build
       - name: Patch version in pyproject.toml
-        run: sed -i "s/^version = .*/version = \"${{ needs.metadata.outputs.version }}\"/" pyproject.toml
+        run: sed -i "s/^version = .*/version = \"${{ steps.calc.outputs.version }}\"/" pyproject.toml
+
+      # Build the Docker image and load it into the local daemon for testing
       - name: Build Docker image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
@@ -86,85 +125,53 @@ jobs:
           load: true
           tags: agent-workspace-mcp:latest
           build-args: |
-            VERSION=${{ needs.metadata.outputs.version }}
+            VERSION=${{ steps.calc.outputs.version }}
             REVISION=${{ github.sha }}
-            CREATED=${{ needs.metadata.outputs.created }}
+            CREATED=${{ steps.calc.outputs.created }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Verify the image starts and responds to a JSON-RPC initialize request
       - name: Docker smoke test
         run: |
           echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"capabilities":{},"protocolVersion":"2024-11-05","clientInfo":{"name":"ci","version":"0.1.0"}}}' \
-          | timeout 10 docker run -i --rm \
+          | timeout 10 docker run --init -i --rm \
             --read-only \
             --tmpfs /tmp \
             --cap-drop=ALL \
-            agent-workspace-mcp \
+            agent-workspace-mcp:latest \
           | head -1 | grep '"jsonrpc":"2.0"'
 
-  docker-publish:
-    # This job triggers only on push to main, manual dispatch, and schedule (tagless flow).
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    needs: [docker-build, metadata]
-    permissions:
-      packages: write
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: Log in to GHCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
-      - name: Lowercase Repository Name
-        id: repo
-        run: echo "name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-      - name: Patch version in pyproject.toml
-        run: sed -i "s/^version = .*/version = \"${{ needs.metadata.outputs.version }}\"/" pyproject.toml
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
-        with:
-          images: ghcr.io/${{ steps.repo.outputs.name }}
-          tags: |
-            type=raw,value=${{ needs.metadata.outputs.version }}
-            type=raw,value=${{ needs.metadata.outputs.base_version }}
-            type=raw,value=${{ needs.metadata.outputs.major_version }}
-            type=raw,value=${{ needs.metadata.outputs.python_version }}
-            type=raw,value=${{ needs.metadata.outputs.python_full_version }}
-            type=raw,value=latest,enable={{is_default_branch}}
-      - name: Sync server.json version
+      # Tag the local image with registry tags and push to GHCR (only on main)
+      - name: Tag and Push Docker image
+        if: env.IS_MAIN == 'true'
         run: |
-          VERSION=${{ needs.metadata.outputs.version }}
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            docker tag agent-workspace-mcp:latest "$tag"
+            docker push "$tag"
+          done
+
+      # Update server.json with the new version and image identifier (only on main)
+      - name: Sync server.json version
+        if: env.IS_MAIN == 'true'
+        run: |
+          VERSION=${{ steps.calc.outputs.version }}
           REPO_NAME=${{ steps.repo.outputs.name }}
           jq --arg v "$VERSION" --arg r "ghcr.io/$REPO_NAME:$VERSION" \
             '.version = $v | .packages[0].identifier = $r' server.json > server.tmp && mv server.tmp server.json
-      - name: Build and push
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ needs.metadata.outputs.version }}
-            REVISION=${{ github.sha }}
-            CREATED=${{ needs.metadata.outputs.created }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
-      # Publish to MCP Registry only on push to main
+      # Install the mcp-publisher tool for registry updates
       - name: Install mcp-publisher
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      # Authenticate to the MCP Registry using OIDC
       - name: Authenticate to MCP Registry
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: ./mcp-publisher login github-oidc
+
+      # Publish the updated server definition to the MCP Registry
       - name: Publish server to MCP Registry
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: ./mcp-publisher publish
