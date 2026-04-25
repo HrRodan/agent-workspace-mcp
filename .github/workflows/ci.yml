@@ -49,11 +49,6 @@ jobs:
         with:
           fetch-depth: ${{ env.IS_MAIN == 'true' && '0' || '1' }}
 
-      # Set up uv to allow detecting the current Python version
-      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v5
-        with:
-          enable-cache: true
-
       # Dynamically compute versions based on pyproject.toml and git history
       - name: Compute version metadata
         id: calc
@@ -76,8 +71,8 @@ jobs:
             MAJOR_VERSION="0"
           fi
           
-          # 4. Extract Python version
-          PYTHON_FULL_VERSION=$(uv run python --version | cut -d' ' -f2)
+          # 4. Extract Python version from Dockerfile (robustly)
+          PYTHON_FULL_VERSION=$(sed -n 's/.*python:\([0-9.]*\).*/\1/p' Dockerfile | head -n 1)
           PYTHON_VERSION=$(echo "$PYTHON_FULL_VERSION" | cut -d. -f1,2)
           
           echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
