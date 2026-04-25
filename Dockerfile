@@ -22,6 +22,8 @@ COPY --from=uv_bin /uv /uvx /bin/
 ARG VERSION="0.0.0-local"
 ARG REVISION="local"
 ARG CREATED="unknown"
+# Persist version for runtime retrieval without patching pyproject.toml
+ENV MCP_SERVER_VERSION=${VERSION}
 # Re-declare the global ARG within this stage to make it available for LABEL
 ARG BASE_IMAGE
 
