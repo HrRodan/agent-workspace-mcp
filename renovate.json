@@ -25,7 +25,8 @@
   },
   "vulnerabilityAlerts": {
     "enabled": true,
-    "automerge": true
+    "automerge": true,
+    "vulnerabilityFixStrategy": "highest"
   },
   "packageRules": [
     {
