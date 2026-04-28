@@ -6,7 +6,7 @@
 # =============================================================================
 
 # Define the base image once as a global ARG
-ARG BASE_IMAGE=python:3.14.4-slim-trixie@sha256:538a18f1db92b4210a0b71aca2d14c156a96dedbe8867465c8ff4dce04d2ec39
+ARG BASE_IMAGE=python:3.14.4-slim-trixie@sha256:c11aee3b3cae066f55d1e9318fc812673aa6557073b0db0d792b59491b262e0c
 
 # --- Stage 1: uv binary ---
 FROM ghcr.io/astral-sh/uv:0.11.7@sha256:240fb85ab0f263ef12f492d8476aa3a2e4e1e333f7d67fbdd923d00a506a516a AS uv_bin
