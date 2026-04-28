@@ -11,7 +11,7 @@
   "schedule": [
     "* 0-8 * * *"
   ],
-  "minimumReleaseAge": "3 days",
+  "minimumReleaseAge": "7 days",
   "minimumReleaseAgeBehaviour": "timestamp-optional",
   "rangeStrategy": "update-lockfile",
   "osvVulnerabilityAlerts": true,
