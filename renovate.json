@@ -12,6 +12,8 @@
     "* 0-8 * * *"
   ],
   "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
+  "rangeStrategy": "update-lockfile",
   "osvVulnerabilityAlerts": true,
   "platformAutomerge": true,
   "rebaseWhen": "behind-base-branch",
