@@ -24,7 +24,7 @@ agent-workspace-mcp = "agent_workspace_mcp.server:main"
 dev = [
     "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
-    "litellm==1.83.0",
+    "litellm==1.83.14",
     "ipykernel==7.2.0",
     "ipython==9.13.0",
     "openai-agents==0.14.6",
