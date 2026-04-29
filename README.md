@@ -186,8 +186,9 @@ This server employs a **defense-in-depth** strategy, explicitly separating stric
 These features are designed to protect the host system and enforce strict isolation boundaries.
 
 - **Kernel Hardening**: All Linux capabilities are dropped (`--cap-drop=ALL`), neutralizing privilege escalation vectors.
+- **Immutable Server Code**: The `/app` directory containing the server source and its virtual environment is owned by `root` and read-only for the `mcpuser`. This prevents the server from modifying itself or being tampered with via `run_bash`.
 - **Privilege Lockdown**: Enforces `no-new-privileges:true` to prevent any process from gaining elevated rights.
-- **Immutable System Core**: The container's root filesystem is mounted entirely **read-only**, preventing persistent OS-level tampering.
+- **Immutable System Core**: The container's root filesystem is mounted entirely **read-only**, providing a second layer of defense against OS-level tampering.
 - **Resource Quotas**: Hard limitations on CPU, Memory, and PIDs mitigate denial-of-service (DoS) attempts like fork-bombs and host exhaustion.
 - **Strict Boundary Enforcement**: A robust path validator comprehensively blocks all path traversal attacks outside the designated `/workspace`.
 - **Process & Resource Control**: Mandatory command timeouts (default 60s) and strict process group isolation ensure runaway or malicious processes are killed.

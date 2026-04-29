@@ -27,7 +27,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tree \
     fd-find \
     ripgrep \
-    procps \
     zip \
     unzip \
  && rm -rf /var/lib/apt/lists/* \
@@ -40,10 +39,8 @@ RUN groupadd -g "${GID}" mcpuser && useradd -u "${UID}" -g "${GID}" -m mcpuser
 
 # --- Application install ---
 # Pre-create directories with correct ownership (still root)
-RUN mkdir -p /app /workspace && chown mcpuser:mcpuser /app /workspace
+RUN mkdir -p /app /workspace && chown mcpuser:mcpuser /workspace
 
-# Switch to non-root before any file operations
-USER mcpuser
 WORKDIR /app
 
 # UV_COMPILE_BYTECODE=1 speeds up startup
@@ -53,21 +50,25 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Copy dependency manifests first to maximize layer cache hits
-COPY --chown=mcpuser:mcpuser pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies (without the project itself)
-RUN --mount=type=cache,target=/home/mcpuser/.cache/uv,uid=1000,gid=1000 \
-    uv sync --frozen --no-install-project --no-dev
+RUN --mount=type=cache,target=/tmp/uv-cache \
+    UV_CACHE_DIR=/tmp/uv-cache uv sync --frozen --no-install-project --no-dev
 
 # Copy application source
-COPY --chown=mcpuser:mcpuser README.md ./
-COPY --chown=mcpuser:mcpuser src/ ./src/
+COPY README.md ./
+COPY src/ ./src/
 
 # Install the project server itself into the venv
-RUN --mount=type=cache,target=/home/mcpuser/.cache/uv,uid=1000,gid=1000 \
-    uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/tmp/uv-cache \
+    UV_CACHE_DIR=/tmp/uv-cache uv sync --frozen --no-dev
+
+# Ensure /app is readable by mcpuser but owned by root
+RUN chmod -R a+rX /app
 
 # --- Workspace setup ---
+USER mcpuser
 WORKDIR /workspace
 
 # UV_PROJECT_ENVIRONMENT ensures agent processes use a local environment
