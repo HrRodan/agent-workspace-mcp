@@ -49,7 +49,7 @@ exclude = [
 
 [tool.pytest.ini_options]
 addopts = "-n 3 --ignore=tests/integration --ignore=tests/container"
-asyncio_mode = "strict"
+asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
