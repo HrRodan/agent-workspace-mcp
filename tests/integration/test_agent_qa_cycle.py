@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from agents import Agent, Runner, trace, RunConfig
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables
 load_dotenv()
@@ -67,7 +67,7 @@ async def test_agent_qa_cycle(agent_workspace: Path):
             "comply with linting standards. You find issues using bash tools like ruff, "
             "fix them using editing tools, and verify the final state."
         ),
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 

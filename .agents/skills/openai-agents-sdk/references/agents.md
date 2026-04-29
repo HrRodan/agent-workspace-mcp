@@ -19,29 +19,26 @@ print(result.final_output)
 result = await Runner.run(agent, "Tell me a joke")
 ```
 
-## Azure OpenAI (LiteLLM)
+## OpenRouter / Custom Provider (Direct)
 
 ```python
 import os
-from typing import Union
-from agents import Agent, ModelSettings
-from agents.extensions.models.litellm_model import LitellmModel
+from openai import AsyncOpenAI
+from agents import Agent, OpenAIChatCompletionsModel
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "azure")
-MODEL = os.getenv("MODEL", "gpt-5.2")
+MODEL = os.getenv("MODEL", "google/gemini-2.0-flash-001")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-def get_model() -> Union[str, LitellmModel]:
-    """Get model based on provider."""
-    if LLM_PROVIDER == "azure":
-        # azure/ prefix tells LiteLLM to use Azure endpoint
-        return LitellmModel(model=f"azure/{MODEL}")
-    # Direct OpenAI
-    return MODEL
+client = AsyncOpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=OPENROUTER_API_KEY,
+)
+model = OpenAIChatCompletionsModel(model=MODEL, openai_client=client)
 
 agent = Agent(
     name="Assistant",
     instructions="You are helpful.",
-    model=get_model(),  # Works with both Azure and OpenAI
+    model=model,
 )
 ```
 

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from agents import Agent, Runner, trace, RunConfig
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables
 load_dotenv()
@@ -67,7 +67,7 @@ async def test_agent_tool_error_recovery(agent_workspace: Path):
             "analyze the error message and try to fix the problem by using other tools "
             "to discover the correct state of the workspace."
         ),
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 

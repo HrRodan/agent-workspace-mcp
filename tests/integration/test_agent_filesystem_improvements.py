@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from agents import Agent, Runner, trace, RunConfig
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables
 load_dotenv()
@@ -61,7 +61,7 @@ async def test_agent_filesystem_improvements(agent_workspace: Path):
             "When reading files, remember that read_file defaults to 100 lines. Use offset/limit "
             "if you need to see more. Use search_and_replace for multi-edit operations."
         ),
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from agents import Agent, Runner
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables
 load_dotenv()
@@ -68,7 +68,7 @@ async def test_native_mcp_fibonacci(agent_workspace: Path):
             "problems by writing and executing Python scripts in your workspace. "
             "Use your tools to manage files and run bash commands."
         ),
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 

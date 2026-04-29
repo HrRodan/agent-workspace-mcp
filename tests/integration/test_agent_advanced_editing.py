@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from agents import Agent, Runner, trace, RunConfig
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables
 load_dotenv()
@@ -60,7 +60,7 @@ async def test_advanced_editing_dry_run(agent_workspace: Path):
             "preview the changes via the unified diff. Once you verify the diff, "
             "apply the changes by setting 'dry_run: false'."
         ),
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 

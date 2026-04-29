@@ -5,7 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from agents import Agent, Runner
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables (API keys, etc.)
 load_dotenv()
@@ -57,7 +57,7 @@ async def test_readme_boilerplate(agent_workspace: Path):
     agent = Agent(
         name="WorkspaceAgent",
         instructions="You are a coding agent with access to a secure workspace. Use your tools to manage files and run bash commands.",
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 

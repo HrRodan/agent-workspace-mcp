@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from agents import Agent, Runner, trace, RunConfig
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables
 load_dotenv()
@@ -65,7 +65,7 @@ async def test_discovery_mcp_methods(agent_workspace: Path):
             "You have access to common tools like curl, jq, grep, and sort. "
             "Expertly chain commands with pipes to achieve your goals efficiently."
         ),
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 

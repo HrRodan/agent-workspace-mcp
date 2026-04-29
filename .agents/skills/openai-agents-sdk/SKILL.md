@@ -21,7 +21,7 @@ uv add install openai-agents
 ```bash
 # OpenAI (direct)
 OPENROUTER_API_KEY=sk-or-v1-...
-DEFAULT_MODEL=openrouter/google/gemini-3-flash-preview # Use Openrouter provider via LiteLLM
+DEFAULT_MODEL=google/gemini-3-flash-preview # Use Openrouter provider directly via AsyncOpenAI base_url
 
 
 ### Basic Agent
@@ -48,7 +48,7 @@ result = await Runner.run(agent, "Tell me a joke")
 | Pattern | Purpose |
 |---------|---------|
 | Basic Agent | Simple Q&A with instructions |
-| Azure/LiteLLM | Azure OpenAI integration |
+| OpenRouter/Direct | Custom OpenAI base_url integration |
 | AgentOutputSchema | Strict JSON validation with Pydantic |
 | Function Tools | External actions (@function_tool) |
 | Streaming | Real-time UI (Runner.run_streamed) |
@@ -63,7 +63,7 @@ result = await Runner.run(agent, "Tell me a joke")
 
 For detailed information, see:
 
-- [agents.md](references/agents.md) - Agent creation, Azure/LiteLLM integration
+- [agents.md](references/agents.md) - Agent creation, Custom base_url (OpenRouter) integration
 - [tools.md](references/tools.md) - Function tools, hosted tools, agents as tools
 - [structured-output.md](references/structured-output.md) - Pydantic output, AgentOutputSchema
 - [streaming.md](references/streaming.md) - Streaming patterns, SSE with FastAPI

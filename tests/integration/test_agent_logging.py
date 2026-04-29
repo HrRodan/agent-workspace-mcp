@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from agents import Agent, Runner, RunConfig
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables
 load_dotenv()
@@ -48,7 +48,7 @@ async def test_agent_audit_logging(agent_workspace: Path):
             "1. List the files in the workspace. "
             "2. Read the content of 'mission.txt'."
         ),
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 

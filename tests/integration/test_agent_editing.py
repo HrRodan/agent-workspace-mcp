@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from agents import Agent, Runner, trace, RunConfig
 from agents.mcp import MCPServerStdio
-from agents.extensions.models.litellm_model import LitellmModel
+from .model_helper import get_openrouter_model
 
 # Load environment variables
 load_dotenv()
@@ -87,7 +87,7 @@ async def test_agent_file_editing(agent_workspace: Path):
             "perform precise modifications using the search_and_replace tool, "
             "and verify your changes by running the code."
         ),
-        model=LitellmModel(model=model_name),
+        model=get_openrouter_model(model_name),
         mcp_servers=[server],
     )
 
