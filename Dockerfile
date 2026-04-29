@@ -39,7 +39,7 @@ RUN find / -xdev \( -perm -4000 -o -perm -2000 \) -exec chmod a-s {} + || true
 # Create a non-root user with configurable UID/GID for host-mount compatibility
 ARG UID=1000
 ARG GID=1000
-RUN groupadd -g "${GID}" mcpuser && useradd -u "${UID}" -g "${GID}" -m mcpuser
+RUN groupadd -g "${GID}" mcpuser && useradd -l -u "${UID}" -g "${GID}" -m mcpuser
 
 # --- Application install ---
 # Pre-create directories with correct ownership (still root)
