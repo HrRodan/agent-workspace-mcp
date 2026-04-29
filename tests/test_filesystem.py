@@ -195,3 +195,32 @@ async def test_search_workspace_traversal_blocked(workspace, mock_ctx):
     with pytest.raises(ToolError) as excinfo:
         await search_workspace("../../**/*.py", mock_ctx)
     assert "Path traversal or absolute paths are not allowed" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_read_file_directory(workspace, mock_ctx):
+    subdir = workspace / "subdir"
+    subdir.mkdir()
+    with pytest.raises(ToolError) as excinfo:
+        await read_file("subdir", mock_ctx)
+    assert "is a directory" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_write_file_creates_parent_dirs(workspace, mock_ctx):
+    result = await write_file("new/nested/file.txt", "content", mock_ctx)
+    assert "Successfully wrote" in result
+    assert (workspace / "new" / "nested" / "file.txt").read_text() == "content"
+
+@pytest.mark.asyncio
+async def test_list_directory_empty(workspace, mock_ctx):
+    subdir = workspace / "empty_dir"
+    subdir.mkdir()
+    result = await list_directory("empty_dir", mock_ctx)
+    assert "Directory is empty" in result
+
+@pytest.mark.asyncio
+async def test_list_directory_not_a_dir(workspace, mock_ctx):
+    test_file = workspace / "file.txt"
+    test_file.write_text("content")
+    with pytest.raises(ToolError) as excinfo:
+        await list_directory("file.txt", mock_ctx)
+    assert "is not a directory" in str(excinfo.value)

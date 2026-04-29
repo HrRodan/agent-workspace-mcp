@@ -6,14 +6,12 @@
 
 # Testing
 
-Do **not** run integration tests under `/tests/integration` by default. They execute real LLM calls and incur costs.  
-
 - **`uv run pytest`**: Run ONLY the fast unit tests (default). Always run this first before running integration tests.
+- **`uv run pytest tests/container`**: Run container tests (requires `docker build -t agent-workspace-mcp .`).
+- **`uv run pytest tests/integration`**: Run ONLY the slower integration tests (requires API keys + Docker).
+- **`uv run pytest tests tests/container tests/integration`**: Run ALL tests.
 
-Before running integration tests the Docker container has to be rebuild with **default values** for all arguments.
-
-- **`uv run pytest tests/integration`**: Run ONLY the slower integration tests.
-- **`uv run pytest tests tests/integration`**: Run ALL tests.
+Before running container or integration tests the Docker container has to be rebuild with **default values** for all arguments.
 
 # Updating the Skill
 

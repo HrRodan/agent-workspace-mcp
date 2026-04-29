@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 from fastmcp.exceptions import ToolError
 from agent_workspace_mcp.tools.execution import run_bash
 
@@ -39,3 +40,21 @@ async def test_run_bash_truncation(workspace, mock_ctx):
     assert "[Exit code: 0]" in result
     assert len(result) < 65000  # Including header
     assert "output truncated at 50KB" in result
+
+@pytest.mark.asyncio
+async def test_run_bash_stderr_merged(workspace, mock_ctx):
+    # Redirect stderr to stdout manually in the command to verify it's captured
+    result = await run_bash("ls /non_existent_dir", ctx=mock_ctx)
+    assert "[Exit code: 2]" in result
+    assert "No such file or directory" in result
+
+@pytest.mark.asyncio
+async def test_run_bash_general_exception(workspace, mock_ctx, monkeypatch):
+    # Force an exception in asyncio.create_subprocess_exec
+    async def mock_subprocess(*args, **kwargs):
+        raise RuntimeError("Subprocess failure")
+    
+    with patch("asyncio.create_subprocess_exec", side_effect=mock_subprocess):
+        with pytest.raises(ToolError) as excinfo:
+            await run_bash("ls", ctx=mock_ctx)
+        assert "Subprocess failure" in str(excinfo.value)

@@ -203,3 +203,57 @@ async def test_search_and_replace_empty_old(workspace, mock_ctx):
     with pytest.raises(ToolError) as excinfo:
         await search_and_replace("test.txt", edits, ctx=mock_ctx)
     assert "empty 'old' text" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_normalize_line_endings():
+    from agent_workspace_mcp.tools.editing import _normalize_line_endings
+    assert _normalize_line_endings("line1\r\nline2") == "line1\nline2"
+    assert _normalize_line_endings("line1\nline2") == "line1\nline2"
+
+@pytest.mark.asyncio
+async def test_find_fuzzy_match_edge_cases():
+    from agent_workspace_mcp.tools.editing import _find_fuzzy_match
+    # Empty old_lines
+    assert _find_fuzzy_match(["line1"], []) is None
+    # No match
+    assert _find_fuzzy_match(["line1"], ["line2"]) is None
+    # Single line match
+    assert _find_fuzzy_match(["  line1  ", "line2"], ["line1"]) == 0
+
+@pytest.mark.asyncio
+async def test_apply_indent_preservation_edge_cases():
+    from agent_workspace_mcp.tools.editing import _apply_with_indent_preservation
+    # Empty new_lines
+    content = ["line1"]
+    assert _apply_with_indent_preservation(content, 0, ["line1"], []) == content
+    # Out of bounds match_start
+    assert _apply_with_indent_preservation(content, 5, ["line1"], ["new"]) == content
+
+@pytest.mark.asyncio
+async def test_search_and_replace_file_not_found(mock_ctx):
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("non_existent.py", [{"old": "a", "new": "b"}], ctx=mock_ctx)
+    assert "not found" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_search_and_replace_missing_keys(workspace, mock_ctx):
+    test_file = workspace / "test.py"
+    test_file.write_text("content")
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("test.py", [{"old": "content"}], ctx=mock_ctx)
+    assert "must contain 'old' and 'new' keys" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_search_and_replace_multiple_exact(workspace, mock_ctx):
+    test_file = workspace / "test.txt"
+    test_file.write_text("item\nitem\n")
+    with pytest.raises(ToolError) as excinfo:
+        await search_and_replace("test.txt", [{"old": "item", "new": "new"}], ctx=mock_ctx)
+    assert "found 2 times (exact match)" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_search_and_replace_no_change(workspace, mock_ctx):
+    test_file = workspace / "test.txt"
+    test_file.write_text("content\n")
+    result = await search_and_replace("test.txt", [{"old": "content", "new": "content"}], ctx=mock_ctx)
+    assert "No changes made" in result

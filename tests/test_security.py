@@ -114,3 +114,25 @@ def test_validate_patch_security(monkeypatch, tmp_path):
 """
     with pytest.raises(ValueError, match="Security violation in patch header"):
         validate_patch_security(malicious_patch_2)
+
+def test_is_binary_empty_file(tmp_path):
+    empty_file = tmp_path / "empty.txt"
+    empty_file.write_bytes(b"")
+    assert is_binary(empty_file) is False
+
+def test_search_exclude_dirs_membership():
+    from agent_workspace_mcp.utils.security import SEARCH_EXCLUDE_DIRS
+    assert ".git" in SEARCH_EXCLUDE_DIRS
+    assert ".venv" in SEARCH_EXCLUDE_DIRS
+    assert "__pycache__" in SEARCH_EXCLUDE_DIRS
+
+def test_validate_patch_no_prefix(monkeypatch, tmp_path):
+    monkeypatch.setattr("agent_workspace_mcp.utils.security.WORKSPACE_ROOT", tmp_path)
+    # Patch without a/ or b/ prefixes
+    valid_patch = """--- main.py
++++ main.py
+@@ -1,1 +1,1 @@
+-old
++new
+"""
+    validate_patch_security(valid_patch)

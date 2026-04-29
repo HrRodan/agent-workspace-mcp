@@ -29,9 +29,9 @@ jobs:
         with:
           enable-cache: true
 
-      # Run unit tests using pytest, ignoring integration tests
+      # Run unit tests using pytest, ignoring integration and container tests, with coverage
       - name: Run unit tests
-        run: uv run pytest tests/ --ignore=tests/integration/ -v
+        run: uv run pytest tests/ --ignore=tests/integration/ --ignore=tests/container/ -v --cov=agent_workspace_mcp --cov-report=term-missing
 
   docker:
     runs-on: ubuntu-latest
@@ -130,6 +130,15 @@ jobs:
             type=gha,scope=docker-${{ github.ref_name }}
             type=gha,scope=docker-main
           cache-to: type=gha,mode=max,scope=docker-${{ github.ref_name }}
+
+      # Set up the uv package manager for container tests
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      # Run container tests using the locally built image
+      - name: Run container tests
+        run: uv run pytest tests/container/ -v --timeout=120
 
       # Verify the image starts and responds to a JSON-RPC initialize request
       - name: Docker smoke test

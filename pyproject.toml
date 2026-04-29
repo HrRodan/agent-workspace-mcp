@@ -31,6 +31,8 @@ dev = [
     "ruff==0.15.12",
     "python-dotenv==1.2.2",
     "pytest-xdist==3.8.0",
+    "pytest-cov==7.1.0",
+    "pytest-timeout==2.4.0",
 ]
 
 [tool.pyrefly]
@@ -46,6 +48,17 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "-n 3 --ignore=tests/integration"
+addopts = "-n 3 --ignore=tests/integration --ignore=tests/container"
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["agent_workspace_mcp"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+]
