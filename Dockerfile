@@ -32,6 +32,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/* \
  && ln -s /usr/bin/fdfind /usr/local/bin/fd
 
+# CIS Docker Benchmark 4.8: Remove setuid/setgid permissions in the image
+# This prevents privilege escalation vulnerabilities from system binaries like `su` or `passwd`
+RUN find / -xdev \( -perm -4000 -o -perm -2000 \) -exec chmod a-s {} + || true
+
 # Create a non-root user with configurable UID/GID for host-mount compatibility
 ARG UID=1000
 ARG GID=1000
