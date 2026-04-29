@@ -16,15 +16,20 @@ class MCPContainerClient:
 
     async def start(self):
         """Start the Docker container and perform the MCP handshake."""
+        import os
+        uid = os.getuid() if hasattr(os, "getuid") else 1000
+        gid = os.getgid() if hasattr(os, "getgid") else 1000
+        
         abs_workspace = str(self.workspace_dir.resolve())
         cmd = [
             "docker", "run", "-i", "--rm",
             "--memory=2g", "--cpus=2.0", "--pids-limit=256",
             "--cap-drop=ALL", "--security-opt=no-new-privileges:true",
-            "--tmpfs", "/tmp:size=64m",
-            "--tmpfs", "/home/mcpuser/.cache:size=512m",
+            "--tmpfs", "/tmp:size=512m",
             "--env", "UV_PROJECT_ENVIRONMENT=/workspace/.venv_container",
-            "--user", "1000:1000",
+            "--env", "HOME=/tmp",
+            "--env", "UV_CACHE_DIR=/tmp/.uv_cache",
+            "--user", f"{uid}:{gid}",
             "-v", f"{abs_workspace}:/workspace",
             "agent-workspace-mcp",
         ]
