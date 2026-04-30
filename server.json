@@ -1,8 +1,12 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.HrRodan/agent-workspace-mcp",
   "title": "Agent Workspace MCP",
   "description": "A sandboxed, agentic workspace providing secure filesystem, bash, and uv-powered Python execution.",
+  "repository": {
+    "url": "https://github.com/HrRodan/agent-workspace-mcp",
+    "source": "github"
+  },
   "version": "1.0.0",
   "packages": [
     {
