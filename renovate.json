@@ -67,8 +67,24 @@
       "matchPackageNames": [
         "python"
       ],
-      "groupName": "python-core",
+      "groupName": "python-core"
+    },
+    {
+      "description": "Use PEP440 versioning for .python-version",
+      "matchManagers": [
+        "python-version"
+      ],
       "versioning": "pep440"
+    },
+    {
+      "description": "Use regex versioning for Python Docker tags to correctly ignore pre-releases",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchPackageNames": [
+        "python"
+      ],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?<prerelease>[^.-]+)?(-(?<compatibility>.*))?$"
     },
     {
       "description": "Group all other Docker images",
