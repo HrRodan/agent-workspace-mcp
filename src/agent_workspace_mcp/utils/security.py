@@ -4,12 +4,9 @@ import os
 import re
 from pathlib import Path
 
-# Workspace root is primarily used when running inside a container.
-# For local development/testing, it defaults to the /workspace directory
-# but can be overridden by environment variables.
-_RAW_ROOT = os.environ.get("WORKSPACE_ROOT", "/workspace")
-# Using abspath here to normalize the root itself
-WORKSPACE_ROOT: Path = Path(os.path.abspath(_RAW_ROOT))
+# The workspace root is hardcoded to /workspace for the containerized environment.
+# Tests can still dynamically override this variable using monkeypatch.
+WORKSPACE_ROOT: Path = Path("/workspace")
 
 COMMAND_TIMEOUT: int = int(os.environ.get("COMMAND_TIMEOUT", "60"))
 MAX_SEARCH_RESULTS: int = int(os.environ.get("MAX_SEARCH_RESULTS", "50"))

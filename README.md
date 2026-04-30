@@ -169,7 +169,6 @@ The server supports the following environment variables (passed via Docker `--en
 
 | Variable | Default | Description |
 |---|---|---|
-| `WORKSPACE_ROOT` | `/workspace` | Root directory for all sandboxed operations. |
 | `COMMAND_TIMEOUT` | `60` | Default seconds before `run_bash` kills a process. |
 | `MAX_SEARCH_RESULTS` | `50` | Maximum results returned by `search_workspace`. |
 | `MAX_READ_SIZE_BYTES` | `1048576` | Maximum file size for `read_file` (1MB). |
