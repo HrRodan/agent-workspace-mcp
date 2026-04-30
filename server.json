@@ -3,6 +3,16 @@
   "name": "io.github.HrRodan/agent-workspace-mcp",
   "title": "Agent Workspace MCP",
   "description": "A sandboxed, agentic workspace providing secure filesystem, bash, and uv-powered Python execution.",
+  "websiteUrl": "https://github.com/HrRodan/agent-workspace-mcp",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/HrRodan/agent-workspace-mcp/refs/heads/main/assets/logo.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    }
+  ],
   "repository": {
     "url": "https://github.com/HrRodan/agent-workspace-mcp",
     "source": "github"
