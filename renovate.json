@@ -77,14 +77,15 @@
       "versioning": "pep440"
     },
     {
-      "description": "Use regex versioning for Python Docker tags to correctly ignore pre-releases",
+      "description": "Use PEP440 for Python Docker tags by separating the compatibility suffix",
       "matchManagers": [
         "dockerfile"
       ],
       "matchPackageNames": [
         "python"
       ],
-      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?<prerelease>[^.-]+)?(-(?<compatibility>.*))?$"
+      "versionCompatibility": "^(?<version>[^-]+)(?<compatibility>-.*)?$",
+      "versioning": "pep440"
     },
     {
       "description": "Group all other Docker images",
