@@ -1,5 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update _VERSION variables in Dockerfile",
+      "fileMatch": [
+        "^Dockerfile$"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+(?:ENV|ARG) .*?_VERSION=\"?(?<currentValue>[^\\s\"]+)\"?"
+      ]
+    }
+  ],
   "extends": [
     "config:best-practices",
     ":dependencyDashboard",

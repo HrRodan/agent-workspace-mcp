@@ -46,6 +46,29 @@ async def run_bash(
     if ctx:
         await ctx.info(f"Running command: {command}")
 
+    # Intercept command via RTK for token optimization
+    try:
+        import shutil
+        rtk_path = shutil.which("rtk")
+        if rtk_path:
+            # Check if rtk can rewrite the command
+            rtk_check = await asyncio.create_subprocess_exec(
+                rtk_path, "rewrite", command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout_bytes, _ = await asyncio.wait_for(rtk_check.communicate(), timeout=2.0)
+            
+            # rtk rewrite exits 0 or 3 on success, and outputs the rewritten command
+            if rtk_check.returncode in (0, 3) and stdout_bytes:
+                optimized_cmd = stdout_bytes.decode("utf-8").strip()
+                if optimized_cmd and optimized_cmd != command:
+                    command = optimized_cmd
+                    if ctx:
+                        await ctx.info(f"RTK optimized command: {command}")
+    except Exception as e:
+        logger.debug(f"RTK rewrite check failed: {e}")
+
     try:
         # Use /bin/sh -c to execute the command string in a new process group
         # start_new_session=True creates a new process group, allowing us to kill children

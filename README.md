@@ -12,6 +12,7 @@ A unified Model Context Protocol (MCP) server providing a **highly secure, conta
 
 - **🏗️ Full Project Lifecycle**: Bootstrap projects with `uv init`, manage dependencies with `uv add`, and execute via `uv run`.
 - **🐚 Secure Bash Access**: Execute shell commands with mandatory timeouts and merged output streams.
+- **🚀 Token-Optimized Output**: Integrates [RTK (Rust Token Killer)](https://github.com/rtk-ai/rtk) to automatically filter and compress `run_bash` outputs (like `ls`, `git`, and test runners), saving 60-90% of LLM context tokens.
 - **📂 Robust Filesystem**: Path-traversal protected operations for reading, writing, and searching the workspace.
 - **🛡️ Multi-Layer Security**: Non-root execution, dropped capabilities, resource limits, and a read-only root filesystem.
 - ⚡ **Precision Editing**: Advanced `search_and_replace` with **fuzzy whitespace matching**, **indentation preservation**, dry-run support, and syntax validation for Python, JSON, JSONL, TOML, and YAML.
@@ -158,7 +159,7 @@ Add the following configuration to your `claude_desktop_config.json` or Cursor s
 | `write_file` | Create files with **syntax validation** and a **5MB size guard**. Refuses to overwrite existing files by default (`create_only=True`). |
 | `list_directory` | List contents with `[F]`ile and `[D]`irectory prefixes. |
 | `search_workspace` | Find files by glob pattern with support for `exclude_patterns`. |
-| `run_bash` | Execute shell commands in `/workspace` with a 60s timeout. |
+| `run_bash` | Execute shell commands in `/workspace` with a 60s timeout. Automatically optimized via RTK to reduce token usage. |
 | `search_and_replace` | Multi-edit tool with **fuzzy whitespace matching**, **indentation preservation**, dry-run mode, and **syntax validation (Python, JSON, JSONL, TOML, YAML)**. |
 
 ---
@@ -198,6 +199,7 @@ These features are designed to protect the host system and enforce strict isolat
 Features focused on seamless integration, usability, and reducing friction during agentic workflows.
 
 - **Host-Aligned Non-Root Identity**: Runs as `mcpuser` with UID/GID [customizable at build time](#1-pull-or-build-the-docker-image), eliminating tedious file permission conflicts on host volume mounts.
+- **Automatic Token Optimization**: Shell commands executed via `run_bash` are transparently rewritten through RTK to provide ultra-compact, LLM-friendly output without altering underlying command behavior.
 - **Intelligent Search Exclusions**: High-noise or sensitive directories (`.git`, `.venv`) are automatically ignored to keep context windows lean and relevant.
 - **Ephemeral Workspaces**: Containers are strictly ephemeral (`--rm`), guaranteeing a clean, predictable slate for every new session without state leaking across connections.
 - **Standardized Discovery**: Complies with the [OCI Image Specification](https://github.com/opencontainers/image-spec) for standardized container ecosystem integration and transparent auditing.

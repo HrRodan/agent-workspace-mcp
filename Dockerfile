@@ -8,10 +8,25 @@
 # Define the base image once as a global ARG
 ARG BASE_IMAGE=python:3.14.4-slim@sha256:c11aee3b3cae066f55d1e9318fc812673aa6557073b0db0d792b59491b262e0c
 
-# --- Stage 1: uv binary ---
+# --- Stage 1: rtk binary ---
+FROM alpine:3.22 AS rtk_bin
+RUN apk add --no-cache curl tar
+# renovate: datasource=github-releases depName=rtk-ai/rtk
+ARG RTK_VERSION="0.38.0"
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        RTK_URL="rtk-x86_64-unknown-linux-musl.tar.gz"; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        RTK_URL="rtk-aarch64-unknown-linux-gnu.tar.gz"; \
+    else \
+        echo "Unsupported architecture: $TARGETARCH" && exit 1; \
+    fi && \
+    curl -fsSL "https://github.com/rtk-ai/rtk/releases/download/v${RTK_VERSION}/${RTK_URL}" | tar -xz -C /usr/local/bin rtk
+
+# --- Stage 2: uv binary ---
 FROM ghcr.io/astral-sh/uv:0.11.8@sha256:3b7b60a81d3c57ef471703e5c83fd4aaa33abcd403596fb22ab07db85ae91347 AS uv_bin
 
-# --- Stage 2: Runtime ---
+# --- Stage 3: Runtime ---
 FROM ${BASE_IMAGE}
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
@@ -29,8 +44,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     zip \
     unzip \
- && rm -rf /var/lib/apt/lists/* \
- && ln -s /usr/bin/fdfind /usr/local/bin/fd
+  && rm -rf /var/lib/apt/lists/* \
+  && ln -s /usr/bin/fdfind /usr/local/bin/fd
+
+COPY --from=rtk_bin /usr/local/bin/rtk /usr/local/bin/rtk
 
 # CIS Docker Benchmark 4.8: Remove setuid/setgid permissions in the image
 # This prevents privilege escalation vulnerabilities from system binaries like `su` or `passwd`
