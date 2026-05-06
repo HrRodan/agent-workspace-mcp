@@ -24,7 +24,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -fsSL "https://github.com/rtk-ai/rtk/releases/download/v${RTK_VERSION}/${RTK_URL}" | tar -xz -C /usr/local/bin rtk
 
 # --- Stage 2: uv binary ---
-FROM ghcr.io/astral-sh/uv:0.11.10@sha256:bca7f6959666f3524e0c42129f9d8bbcfb0c180d847f5187846b98ff06125ead AS uv_bin
+FROM ghcr.io/astral-sh/uv:0.11.11@sha256:798712e57f879c5393777cbda2bb309b29fcdeb0532129d4b1c3125c5385975a AS uv_bin
 
 # --- Stage 3: Runtime ---
 FROM ${BASE_IMAGE}
