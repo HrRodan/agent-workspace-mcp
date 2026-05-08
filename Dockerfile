@@ -1,11 +1,12 @@
+# syntax=docker/dockerfile:1
 # =============================================================================
 # Agent Workspace MCP — Production Dockerfile
-# Architecture: two-stage build (uv binary + Python slim runtime)
+# Architecture: three-stage build (rtk binary, uv binary, Python slim runtime)
 # Transport:    stdio (JSON-RPC over stdin/stdout)
 # Runtime user: mcpuser (UID 1000 by default)
 # =============================================================================
 
-# Define the base image once as a global ARG
+# Global ARG: single source of truth for the base image (used by Renovate + LABEL)
 ARG BASE_IMAGE=python:3.14.4-slim@sha256:c11aee3b3cae066f55d1e9318fc812673aa6557073b0db0d792b59491b262e0c
 
 # --- Stage 1: rtk binary ---
@@ -34,7 +35,9 @@ SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 COPY --from=uv_bin /uv /uvx /bin/
 
 # Install minimal system utilities required by the agentic workspace
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     jq \
@@ -44,10 +47,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     zip \
     unzip \
-  && rm -rf /var/lib/apt/lists/* \
   && ln -s /usr/bin/fdfind /usr/local/bin/fd
 
-COPY --from=rtk_bin /usr/local/bin/rtk /usr/local/bin/rtk
+# Configure git security defaults for the workspace
+RUN git config --system safe.directory /workspace \
+ && git config --system credential.helper '' \
+ && git config --system core.autocrlf input
+
+COPY --link --from=rtk_bin /usr/local/bin/rtk /usr/local/bin/rtk
 
 # CIS Docker Benchmark 4.8: Remove setuid/setgid permissions in the image
 # This prevents privilege escalation vulnerabilities from system binaries like `su` or `passwd`
@@ -59,16 +66,18 @@ ARG GID=1000
 RUN groupadd -g "${GID}" mcpuser && useradd -l -u "${UID}" -g "${GID}" -m mcpuser
 
 # --- Application install ---
-# Pre-create directories with correct ownership (still root)
+# /app stays root-owned (immutable at runtime); /workspace is owned by mcpuser
 RUN mkdir -p /app /workspace && chown mcpuser:mcpuser /workspace
 
 WORKDIR /app
 
 # UV_COMPILE_BYTECODE=1 speeds up startup
 # UV_LINK_MODE=copy ensures compatibility across Docker layers
+# PYTHONDONTWRITEBYTECODE=1 prevents stray .pyc files outside of uv's compilation
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 # Copy dependency manifests first to maximize layer cache hits
 COPY pyproject.toml uv.lock ./
@@ -85,18 +94,22 @@ COPY src/ ./src/
 RUN --mount=type=cache,target=/tmp/uv-cache \
     UV_CACHE_DIR=/tmp/uv-cache uv sync --frozen --no-dev
 
-# Ensure /app is readable by mcpuser but owned by root
+# Make /app world-readable while keeping root ownership (immutable for mcpuser)
 RUN chmod -R a+rX /app
 
 # --- Workspace setup ---
 USER mcpuser
 WORKDIR /workspace
 
-# UV_PROJECT_ENVIRONMENT ensures agent processes use a local environment
+# Isolate agent-installed packages from the server venv into a workspace-local venv
 ENV UV_PROJECT_ENVIRONMENT=/workspace/.venv_container \
     PATH="/app/.venv/bin:$PATH"
 
 STOPSIGNAL SIGTERM
+
+# Recommended runtime flags:
+#   --tmpfs /tmp:rw,noexec,nosuid,size=256m
+#   --read-only (if /workspace is bind-mounted)
 
 # OCI & MCP metadata
 ARG VERSION="0.0.0-local"
@@ -118,5 +131,9 @@ LABEL org.opencontainers.image.title="Agent Workspace MCP" \
       org.opencontainers.image.base.name="${BASE_IMAGE}" \
       io.modelcontextprotocol.server.name="io.github.HrRodan/agent-workspace-mcp"
 
-# Execute the server using its dedicated virtual environment
+# Verify the venv is intact and the server module is importable
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import agent_workspace_mcp" || exit 1
+
+# Server venv is activated via PATH above; run the MCP server module
 ENTRYPOINT ["python", "-m", "agent_workspace_mcp.server"]
