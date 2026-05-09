@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:2780b5c3bab67f1f76c781860de469442999ed1a0d7992a5efdf2cffc0e3d769
 # =============================================================================
 # Agent Workspace MCP — Production Dockerfile
 # Architecture: three-stage build (rtk binary, uv binary, Python slim runtime)
@@ -25,7 +25,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -fsSL "https://github.com/rtk-ai/rtk/releases/download/v${RTK_VERSION}/${RTK_URL}" | tar -xz -C /usr/local/bin rtk
 
 # --- Stage 2: uv binary ---
-FROM ghcr.io/astral-sh/uv:0.11.11@sha256:798712e57f879c5393777cbda2bb309b29fcdeb0532129d4b1c3125c5385975a AS uv_bin
+FROM ghcr.io/astral-sh/uv:0.11.12@sha256:3a59a3cdd5f7c217faa36e32dbc7fddbb0412889c2a0a5229f6d790e5a019dd7 AS uv_bin
 
 # --- Stage 3: Runtime ---
 FROM ${BASE_IMAGE}
