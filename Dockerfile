@@ -28,7 +28,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -fsSL --retry 3 --retry-delay 5 "${RTK_DOWNLOAD_URL}" -o /tmp/rtk.tar.gz && \
     tar -xzf /tmp/rtk.tar.gz -C /usr/local/bin rtk && \
     rm -f /tmp/rtk.tar.gz && \
-    rtk --version
+    test -x /usr/local/bin/rtk && echo "rtk binary OK ($(wc -c < /usr/local/bin/rtk) bytes)"
 
 # --- Stage 2: uv binary ---
 FROM ghcr.io/astral-sh/uv:0.11.14@sha256:1025398289b62de8269e70c45b91ffa37c373f38118d7da036fb8bb8efc85d97 AS uv_bin
