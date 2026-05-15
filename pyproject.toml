@@ -5,9 +5,12 @@ description = "A sandboxed, agentic workspace MCP server for LLMs."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "fastapi>=0.136.1",
     "fastmcp==3.2.4",
     "pydantic==2.13.4",
     "pyyaml==6.0.3",
+    "starlette>=1.0.0",
+    "uvicorn>=0.46.0",
 ]
 
 [build-system]

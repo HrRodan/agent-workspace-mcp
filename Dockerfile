@@ -2,7 +2,7 @@
 # =============================================================================
 # Agent Workspace MCP — Production Dockerfile
 # Architecture: three-stage build (rtk binary, uv binary, Python slim runtime)
-# Transport:    stdio (JSON-RPC over stdin/stdout)
+# Transport:    stdio (default) or HTTP (via MCP_TRANSPORT=http)
 # Runtime user: mcpuser (UID 1000 by default)
 # =============================================================================
 
@@ -116,6 +116,9 @@ STOPSIGNAL SIGTERM
 # Recommended runtime flags:
 #   --tmpfs /tmp:rw,noexec,nosuid,size=256m
 #   --read-only (if /workspace is bind-mounted)
+
+# Expose HTTP transport port (only used when MCP_TRANSPORT=http)
+EXPOSE 8000
 
 # OCI & MCP metadata
 ARG VERSION="0.0.0-local"

@@ -4,6 +4,7 @@ import json
 import asyncio
 import pytest
 from pathlib import Path
+from tests.container.utils import MCPHTTPContainerClient
 
 
 class MCPContainerClient:
@@ -94,6 +95,15 @@ class MCPContainerClient:
 async def mcp_client(tmp_path):
     """Provide an MCP container client connected to a fresh workspace."""
     client = MCPContainerClient(tmp_path)
+    await client.start()
+    yield client
+    await client.stop()
+
+
+@pytest.fixture
+async def mcp_http_client(tmp_path):
+    """Provide an MCP HTTP container client."""
+    client = MCPHTTPContainerClient(tmp_path)
     await client.start()
     yield client
     await client.stop()

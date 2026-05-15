@@ -13,6 +13,26 @@ MAX_SEARCH_RESULTS: int = int(os.environ.get("MAX_SEARCH_RESULTS", "50"))
 MAX_READ_SIZE_BYTES: int = int(os.environ.get("MAX_READ_SIZE_BYTES", str(1024 * 1024)))
 MAX_WRITE_SIZE_BYTES: int = int(os.environ.get("MAX_WRITE_SIZE_BYTES", str(5 * 1024 * 1024)))
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
+ 
+# HTTP transport configuration
+MCP_TRANSPORT: str = os.environ.get("MCP_TRANSPORT", "stdio")
+MCP_HOST: str = os.environ.get("MCP_HOST", "0.0.0.0")
+MCP_PORT: int = int(os.environ.get("MCP_PORT", "8000"))
+ 
+ 
+def get_api_key() -> str:
+    """Retrieve the API key from environment variables.
+ 
+    Returns:
+        The API key string.
+ 
+    Raises:
+        RuntimeError: If MCP_API_KEY is not set.
+    """
+    key = os.environ.get("MCP_API_KEY")
+    if not key:
+        raise RuntimeError("MCP_API_KEY environment variable must be set when transport is HTTP")
+    return key
 
 # Directories excluded from search results to reduce noise
 SEARCH_EXCLUDE_DIRS: frozenset[str] = frozenset(

@@ -1,14 +1,20 @@
 import logging
 import sys
 import io
+import os
 from logging.handlers import RotatingFileHandler
 from fastmcp import FastMCP
+from fastmcp.server.middleware import Middleware, MiddlewareContext
+from fastmcp.server.dependencies import get_http_headers
+from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from agent_workspace_mcp.utils import security
 from agent_workspace_mcp.tools import filesystem, execution, editing
 
 from agent_workspace_mcp import __version__
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -31,8 +37,13 @@ class StdoutRedirector(io.TextIOBase):
         return sys.stderr.flush()
 
 
-sys.stdout = StdoutRedirector(sys.stdout)
+if security.MCP_TRANSPORT == "stdio":
+    sys.stdout = StdoutRedirector(sys.stdout)
 
+
+# Disable FastMCP banner and update checks for faster startup
+os.environ["FASTMCP_SHOW_SERVER_BANNER"] = "false"
+os.environ["FASTMCP_CHECK_FOR_UPDATES"] = "false"
 
 # Initialize FastMCP server
 mcp = FastMCP(
@@ -88,6 +99,23 @@ mcp.tool(annotations=ToolAnnotations(
 ))(editing.search_and_replace)
 
 
+
+class BearerAuthMiddleware(Middleware):
+    """Enforces Bearer token authentication for all tool calls in HTTP mode."""
+    def __init__(self, token: str):
+        self.token = token
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        headers = get_http_headers() or {}
+        # Uvicorn and fastmcp lowercase all headers
+        auth_header = headers.get("authorization", "")
+        
+        if not auth_header.startswith("Bearer ") or auth_header[7:] != self.token:
+            raise ToolError("Unauthorized: Invalid or missing API key")
+            
+        return await call_next(context)
+
+
 def setup_logging() -> None:
     """Configure dual logging: stderr + rotating file in /workspace/.mcp/."""
     try:
@@ -133,13 +161,51 @@ def setup_logging() -> None:
 def main() -> None:
     """Entry point for the Agent Workspace MCP server."""
     setup_logging()
-    logger = logging.getLogger(__name__)
-    logger.info("Agent Workspace MCP server starting...")
+    
+    logger.info("Agent Workspace MCP server starting (transport=%s)...", security.MCP_TRANSPORT)
     logger.info("Workspace root: %s", security.WORKSPACE_ROOT)
     logger.info("Log level: %s", security.LOG_LEVEL)
 
-    # Run the server using stdio transport
-    mcp.run()
+    if security.MCP_TRANSPORT == "http":
+        import uvicorn
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from fastapi.responses import JSONResponse
+        
+        from starlette.applications import Starlette
+        from starlette.routing import Mount
+        from starlette.middleware import Middleware
+        
+        api_key = security.get_api_key()
+        mcp_app = mcp.http_app(transport='sse')
+        
+        class AuthMiddleware(BaseHTTPMiddleware):
+            async def dispatch(self, request, call_next):
+                auth_header = request.headers.get("Authorization")
+                print(f"DEBUG STARLETTE AUTH: path={request.url.path} auth={auth_header}", flush=True)
+                
+                if not auth_header or auth_header != f"Bearer {api_key}":
+                    print(f"DEBUG STARLETTE AUTH: DENIED path={request.url.path}", flush=True)
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "Unauthorized: Invalid or missing API key"}
+                    )
+                return await call_next(request)
+        
+        # Create a wrapper app to ensure middleware is applied correctly
+        final_app = Starlette(
+            routes=[Mount("/", app=mcp_app)],
+            middleware=[Middleware(AuthMiddleware)]
+        )
+        
+        # Disable FastMCP banner and update checks for faster startup
+        os.environ["FASTMCP_SHOW_SERVER_BANNER"] = "false"
+        os.environ["FASTMCP_CHECK_FOR_UPDATES"] = "false"
+        
+        logger.info("HTTP endpoint: http://%s:%d/sse", security.MCP_HOST, security.MCP_PORT)
+        uvicorn.run(final_app, host=security.MCP_HOST, port=security.MCP_PORT, log_level="info")
+    else:
+        # Default stdio transport
+        mcp.run()
 
 
 if __name__ == "__main__":
