@@ -39,7 +39,7 @@ dev = [
     { name = "hatchling", specifier = "==1.29.0" },
     { name = "ipykernel", specifier = "==7.2.0" },
     { name = "ipython", specifier = "==9.13.0" },
-    { name = "openai-agents", specifier = "==0.16.0" },
+    { name = "openai-agents", specifier = "==0.16.1" },
     { name = "pytest", specifier = "==9.0.3" },
     { name = "pytest-asyncio", specifier = "==1.3.0" },
     { name = "pytest-cov", specifier = "==7.1.0" },
@@ -956,7 +956,7 @@ wheels = [
 
 [[package]]
 name = "openai-agents"
-version = "0.16.0"
+version = "0.16.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "griffelib" },
@@ -968,9 +968,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/59/47/ecc92fb10898bd5458c887e3a8814ee3d612c585ea80aa3f6dc41b636030/openai_agents-0.16.0.tar.gz", hash = "sha256:5efd3a994c974ebe05fc38b5bc9b405f4ad61185fdab2c19d58b1d22901433a3", size = 5344082, upload-time = "2026-05-07T00:28:37.648Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/73/acf74d65495149421f43173f444611fc7b962f68b6011b10d6e5d491be14/openai_agents-0.16.1.tar.gz", hash = "sha256:91b682f9c5f885a0b83c6bdc55f73e760a12e00cf2959a18ffced9b3b9a3627b", size = 5350036, upload-time = "2026-05-07T11:02:39.479Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/60/ac/150e54b7114346501f9b1059fa90bfe3967e12902981e4f30df3473d04b8/openai_agents-0.16.0-py3-none-any.whl", hash = "sha256:10042d5374080c5323e1745723569fa19288f49c9f2eecb8921ec8d3529cf4c3", size = 824698, upload-time = "2026-05-07T00:28:35.549Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/db/fc5fca9a842ad9867c7091a6735148b2b02c71895b32689492d567454e50/openai_agents-0.16.1-py3-none-any.whl", hash = "sha256:ee775cdd7625bb7dbcbba6ba404d2b2355073097ad63d6203f3792e992f735e0", size = 826180, upload-time = "2026-05-07T11:02:37.629Z" },
 ]
 
 [[package]]
