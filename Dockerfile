@@ -13,7 +13,7 @@ ARG BASE_IMAGE=python:3.14.4-slim@sha256:2ca02f32b4d9d893863367ce07ec1972819f476
 FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS rtk_bin
 RUN apk add --no-cache curl tar
 # renovate: datasource=github-releases depName=rtk-ai/rtk
-ARG RTK_VERSION="0.38.0"
+ARG RTK_VERSION="0.39.0"
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         RTK_URL="rtk-x86_64-unknown-linux-musl.tar.gz"; \
@@ -22,7 +22,13 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     else \
         echo "Unsupported architecture: $TARGETARCH" && exit 1; \
     fi && \
-    curl -fsSL "https://github.com/rtk-ai/rtk/releases/download/v${RTK_VERSION}/${RTK_URL}" | tar -xz -C /usr/local/bin rtk
+    RTK_CLEAN_VERSION="${RTK_VERSION#v}" && \
+    RTK_DOWNLOAD_URL="https://github.com/rtk-ai/rtk/releases/download/v${RTK_CLEAN_VERSION}/${RTK_URL}" && \
+    echo "Downloading rtk v${RTK_CLEAN_VERSION} from ${RTK_DOWNLOAD_URL}" && \
+    curl -fsSL --retry 3 --retry-delay 5 "${RTK_DOWNLOAD_URL}" -o /tmp/rtk.tar.gz && \
+    tar -xzf /tmp/rtk.tar.gz -C /usr/local/bin rtk && \
+    rm -f /tmp/rtk.tar.gz && \
+    rtk --version
 
 # --- Stage 2: uv binary ---
 FROM ghcr.io/astral-sh/uv:0.11.14@sha256:1025398289b62de8269e70c45b91ffa37c373f38118d7da036fb8bb8efc85d97 AS uv_bin
