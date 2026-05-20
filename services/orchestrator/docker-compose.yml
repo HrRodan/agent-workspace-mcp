@@ -1,0 +1,80 @@
+
+# =============================================================================
+# Production-Grade Multi-Tenant MCP Orchestrator Compose System
+# Hardened to run with the absolute least privileges required (least privilege principle)
+# =============================================================================
+
+networks:
+  mcp-network:
+    name: mcp-network
+    external: true
+
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-orchestrator
+    restart: unless-stopped
+    
+    # Network Isolation
+    networks:
+      - mcp-network
+      
+    ports:
+      - "8000:8000"
+      
+    # Hardened Security Policies & Least Privileges
+    # -------------------------------------------------------------------------
+    # Enforce read-only root filesystem to prevent runtime image tampering
+    read_only: true
+    
+    # Drop all Linux kernel capabilities to eliminate risk of privilege escalation
+    cap_drop:
+      - ALL
+      
+    # Disable process privilege elevation (e.g. via setuid binaries)
+    security_opt:
+      - no-new-privileges:true
+      
+    # Run as the unprivileged user (UID 10001) built into the Dockerfile.
+    # Note: To allow the container to access the host's `/var/run/docker.sock`,
+    # you may need to map the container user to the GID of the host's 'docker' group.
+    # On most Linux hosts, GID 999 is standard. Change GID 999 to your host's docker GID.
+    user: "10001:988"
+    
+    # Resource Constraints & Limits to prevent Denial of Service (DoS) / Resource Exhaustion
+    cpus: 1.0
+    mem_limit: 512M
+    mem_reservation: 128M
+    pids_limit: 100
+    
+    # Hardened ephemeral writeable areas using RAM (tmpfs) instead of persistent storage
+    tmpfs:
+      - /tmp:size=64M
+      - /home/orchestrator:size=16M
+      
+    volumes:
+      # Sibling Container interaction: communication with host Docker socket.
+      # Mounted read-write since docker client writes requests to the socket.
+      - /var/run/docker.sock:/var/run/docker.sock
+      
+      # Isolated directory where the host creates workspaces for spawned agent containers.
+      # Ensure this host directory has permissions 777 or is owned by UID 10001 / GID 999
+      # so that the orchestrator can cleanly create subfolders.
+      - /tmp/mcp-workspaces:/tmp/mcp-workspaces
+      
+    environment:
+      # Use a secure, high-entropy random API key in production!
+      - ORCHESTRATOR_API_KEY=super-secret-gateway-key
+      - ORCHESTRATOR_MODE=production
+      - DOCKER_NETWORK=mcp-network
+      - AGENT_IMAGE=agent-workspace-mcp:latest
+      - BASE_WORKSPACE_DIR=/tmp/mcp-workspaces
+      
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -61,7 +61,7 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "-n 3 --ignore=tests/integration --ignore=tests/container"
+addopts = "-n 3 --ignore=tests/integration --ignore=tests/container --ignore=services --ignore=scratch"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

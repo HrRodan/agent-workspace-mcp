@@ -182,6 +182,89 @@ The server supports the following environment variables (passed via Docker `--en
 
 ---
 
+## 🌐 HTTP/SSE Transport & Multi-Tenant Orchestrator
+
+The sandbox environment supports running as a secure remote service connected via standard **HTTP with Server-Sent Events (SSE)**. 
+
+To enable enterprise-grade multi-tenancy, we provide a production-ready **API Gateway and session manager (the Orchestrator)** located under `services/orchestrator`. The Orchestrator manages dynamic sandbox container lifecycles on the fly, proxying secure HTTP/SSE connections uniquely for each tenant.
+
+### 🚀 Running the Orchestrator (Docker Compose)
+Deploy the Orchestrator with a single command under its hardened, least-privilege production configuration:
+```bash
+cd services/orchestrator
+docker-compose up -d --build
+```
+
+### 📝 Concrete Usage Example (Client Integration)
+
+Integrating your client application or LLM agent runner with the multi-tenant Orchestrator involves a 3-step handshake:
+
+#### 1. Request an Isolated Workspace Session
+The client requests a new workspace session by providing the Orchestrator bearer API key.
+```bash
+curl -X POST http://localhost:8000/api/sessions \
+  -H "Authorization: Bearer super-secret-gateway-key"
+```
+**Response (`200 OK`):**
+```json
+{
+  "session_id": "a4d872b1c4e9...",
+  "target_url": "http://mcp-agent-a4d872b1c4e9:8000"
+}
+```
+
+#### 2. Establish Server-Sent Events (SSE) Tunnel
+The client connects to the SSE channel of the spawned session to receive real-time JSON-RPC responses from the agent container:
+```bash
+curl -N http://localhost:8000/mcp/a4d872b1c4e9.../sse \
+  -H "Authorization: Bearer super-secret-gateway-key"
+```
+Upon connection, the gateway immediately streams the dedicated **client message posting endpoint** inside a custom `endpoint` event:
+```text
+event: endpoint
+data: /mcp/a4d872b1c4e9.../?session_id=internal-secret-token
+```
+All subsequent client JSON-RPC requests (handshakes, notifications, tool calls) must be POSTed to this returned URL!
+
+#### 3. Perform standard MCP Handshake & Call Tools
+Send the standard MCP `initialize` request to the post endpoint:
+```bash
+curl -X POST "http://localhost:8000/mcp/a4d872b1c4e9.../?session_id=internal-secret-token" \
+  -H "Authorization: Bearer super-secret-gateway-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {"name": "my-mcp-client", "version": "1.0.0"}
+    },
+    "id": 0
+  }'
+```
+Once the `initialize` result is received on your SSE stream, send the `notifications/initialized` event, and then you can execute filesystem or terminal tools securely:
+```bash
+# Example: Call the `write_file` tool securely inside the sandboxed workspace
+curl -X POST "http://localhost:8000/mcp/a4d872b1c4e9.../?session_id=internal-secret-token" \
+  -H "Authorization: Bearer super-secret-gateway-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "write_file",
+      "arguments": {
+        "filepath": "hello.txt",
+        "content": "Hello from secure multi-tenant MCP HTTP/SSE transport!"
+      }
+    },
+    "id": 1
+  }'
+```
+
+---
+
 ## 🛡️ Security & Architecture Model
 
 This server employs a **defense-in-depth** strategy, explicitly separating strict security boundaries from developer experience and operational reliability features.
