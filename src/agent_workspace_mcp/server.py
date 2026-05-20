@@ -4,9 +4,6 @@ import io
 import os
 from logging.handlers import RotatingFileHandler
 from fastmcp import FastMCP
-from fastmcp.server.middleware import Middleware, MiddlewareContext
-from fastmcp.server.dependencies import get_http_headers
-from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from agent_workspace_mcp.utils import security
@@ -100,20 +97,7 @@ mcp.tool(annotations=ToolAnnotations(
 
 
 
-class BearerAuthMiddleware(Middleware):
-    """Enforces Bearer token authentication for all tool calls in HTTP mode."""
-    def __init__(self, token: str):
-        self.token = token
 
-    async def on_call_tool(self, context: MiddlewareContext, call_next):
-        headers = get_http_headers() or {}
-        # Uvicorn and fastmcp lowercase all headers
-        auth_header = headers.get("authorization", "")
-        
-        if not auth_header.startswith("Bearer ") or auth_header[7:] != self.token:
-            raise ToolError("Unauthorized: Invalid or missing API key")
-            
-        return await call_next(context)
 
 
 def setup_logging() -> None:
@@ -175,7 +159,11 @@ def main() -> None:
         from starlette.routing import Mount
         from starlette.middleware import Middleware
         
-        api_key = security.get_api_key()
+        try:
+            api_key = security.get_api_key()
+        except RuntimeError as e:
+            logger.error(str(e))
+            sys.exit(1)
         mcp_app = mcp.http_app(transport='sse')
         
         class AuthMiddleware(BaseHTTPMiddleware):
