@@ -5,7 +5,7 @@ description = "A sandboxed, agentic workspace MCP server for LLMs."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "fastmcp==3.2.4",
+    "fastmcp==3.3.1",
     "pydantic==2.13.4",
     "pyyaml==6.0.3",
 ]
@@ -26,9 +26,9 @@ dev = [
     "pytest-asyncio==1.3.0",
     "ipykernel==7.2.0",
     "ipython==9.13.0",
-    "openai-agents==0.17.0",
+    "openai-agents==0.17.2",
     "hatchling==1.29.0",
-    "ruff==0.15.12",
+    "ruff==0.15.13",
     "python-dotenv==1.2.2",
     "pytest-xdist==3.8.0",
     "pytest-cov==7.1.0",
