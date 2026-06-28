@@ -10,7 +10,7 @@
 ARG BASE_IMAGE=python:3.14.6-slim@sha256:63a4c7f612a00f92042cbdcc7cdc6a306f38485af0a200b9c89de7d9b1607d15
 
 # --- Stage 1: rtk binary ---
-FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS rtk_bin
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS rtk_bin
 RUN apk add --no-cache curl tar
 # renovate: datasource=github-releases depName=rtk-ai/rtk
 ARG RTK_VERSION="0.42.4"
@@ -31,7 +31,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     test -x /usr/local/bin/rtk && echo "rtk binary OK ($(wc -c < /usr/local/bin/rtk) bytes)"
 
 # --- Stage 2: uv binary ---
-FROM ghcr.io/astral-sh/uv:0.11.23@sha256:d0a0a753ab981624b49c97abc98821c1c09f4ca69d1ef5cee69c501be3d88479 AS uv_bin
+FROM ghcr.io/astral-sh/uv:0.11.25@sha256:1e3808aa9023d0980e7c15b1fa7c1ac16ff35925780cf5c459858b2d693f01a9 AS uv_bin
 
 # --- Stage 3: Runtime ---
 FROM ${BASE_IMAGE}
