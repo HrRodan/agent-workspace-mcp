@@ -31,7 +31,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     test -x /usr/local/bin/rtk && echo "rtk binary OK ($(wc -c < /usr/local/bin/rtk) bytes)"
 
 # --- Stage 2: uv binary ---
-FROM ghcr.io/astral-sh/uv:0.11.26@sha256:3d868e555f8f1dbc324afa005066cd11e1053fc4743b9808ca8025283e65efa5 AS uv_bin
+FROM ghcr.io/astral-sh/uv:0.11.28@sha256:0f36cb9361a3346885ca3677e3767016687b5a170c1a6b88465ec14aefec90aa AS uv_bin
 
 # --- Stage 3: Runtime ---
 FROM ${BASE_IMAGE}
