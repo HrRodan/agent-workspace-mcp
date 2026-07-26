@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Check out the repository source code
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       # Set up the uv package manager with caching enabled
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
@@ -45,7 +45,7 @@ jobs:
       IS_MAIN: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     steps:
       # Check out the repository with full history for version calculation
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: ${{ env.IS_MAIN == 'true' && '0' || '1' }}
 
@@ -93,7 +93,7 @@ jobs:
       # Log in to GitHub Container Registry (only on main)
       - name: Log in to GHCR
         if: env.IS_MAIN == 'true'
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
