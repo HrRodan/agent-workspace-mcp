@@ -13,7 +13,7 @@ ARG BASE_IMAGE=python:3.14.7-slim@sha256:ce40764625a4ff50df3548277632e7f96c4e77f
 FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS rtk_bin
 RUN apk add --no-cache curl tar
 # renovate: datasource=github-releases depName=rtk-ai/rtk
-ARG RTK_VERSION="0.45.0"
+ARG RTK_VERSION="0.46.0"
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         RTK_URL="rtk-x86_64-unknown-linux-musl.tar.gz"; \
