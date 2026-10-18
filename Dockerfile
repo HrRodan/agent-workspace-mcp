@@ -7,7 +7,7 @@
 # =============================================================================
 
 # Global ARG: single source of truth for the base image (used by Renovate + LABEL)
-ARG BASE_IMAGE=python:3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6
+ARG BASE_IMAGE=python:3.14.8-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 
 # --- Stage 1: rtk binary ---
 FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS rtk_bin
